@@ -62,7 +62,11 @@ func openDatabase(path string) (*sql.DB, error) {
 		 attempts INTEGER NOT NULL DEFAULT 0, next_attempt INTEGER NOT NULL,
 		 delivered_at INTEGER, expired INTEGER NOT NULL DEFAULT 0,
 		 PRIMARY KEY(notification_id, target_id));
-		CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+		CREATE TABLE IF NOT EXISTS address_popups (
+         id TEXT PRIMARY KEY, uid TEXT NOT NULL REFERENCES users(uid), token_hash TEXT NOT NULL,
+         expires_at INTEGER NOT NULL, result_json TEXT);
+        CREATE INDEX IF NOT EXISTS address_popups_expiry ON address_popups(expires_at);
+        CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 		CREATE TABLE IF NOT EXISTS maps_usage (day TEXT NOT NULL, kind TEXT NOT NULL, count INTEGER NOT NULL,
 		 PRIMARY KEY(day,kind));
 	`)

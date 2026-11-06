@@ -25,6 +25,8 @@ class BackendApi {
   final PlatformBridge platform;
   final Uri origin;
   String? _token;
+  bool _addressPicking = false;
+  bool _addressCancelled = false;
   Future<void>? _authenticating;
   bool _closed = false;
   Map<String, dynamic> config = {};
@@ -146,6 +148,80 @@ class BackendApi {
       }
       if (!_closed) await Future<void>.delayed(const Duration(seconds: 3));
     }
+  }
+
+  Future<String?> pickAddress() async {
+    if (_addressPicking) throw StateError('주소 검색창을 먼저 닫아주세요.');
+    _addressPicking = true;
+    _addressCancelled = false;
+    Map<String, dynamic>? launch;
+    var popupClosed = false;
+    Object? popupError;
+    try {
+      // Open the browser window synchronously inside the original tap gesture.
+      platform.prepareAddressPopup();
+      launch = await request(
+        'POST',
+        '/api/address-popup',
+        body: <String, dynamic>{},
+      ) as Map<String, dynamic>;
+      if (_addressCancelled || _closed) return null;
+      unawaited(
+        platform
+            .addressPopup(launch)
+            .then(
+              (_) {
+                popupClosed = true;
+              },
+              onError: (Object error, StackTrace _) {
+                popupError = error;
+                popupClosed = true;
+              },
+            ),
+      );
+      final deadline = DateTime.now().add(const Duration(minutes: 10));
+      while (!_closed &&
+          !_addressCancelled &&
+          DateTime.now().isBefore(deadline)) {
+        // Polling also works when a mobile browser cannot retain window.opener.
+        final status =
+            await request('GET', '/api/address-popup/${launch['id']}') as Map;
+        if (status['ready'] == true) {
+          final address = (status['address'] as Map)['roadAddress'] as String;
+          if (address.trim().isEmpty || address.runes.length > 120) {
+            throw StateError('선택한 주소를 확인해주세요.');
+          }
+          return address;
+        }
+        if (popupError != null) throw StateError('주소 검색창을 열지 못했어요. 다시 시도해주세요.');
+        if (popupClosed) return null;
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
+      }
+      if (_addressCancelled || _closed) return null;
+      throw StateError('주소 검색 시간이 지났어요. 다시 검색해주세요.');
+    } finally {
+      try {
+        await platform.cancelAddressPopup();
+      } catch (_) {
+        /* Closing an already detached popup is harmless. */
+      }
+      if (launch != null && !_closed) {
+        try {
+          await request(
+            'DELETE',
+            '/api/address-popup/${launch['id']}',
+          ).timeout(const Duration(seconds: 5));
+        } catch (_) {
+          /* Expiry also removes abandoned results. */
+        }
+      }
+      _addressPicking = false;
+    }
+  }
+
+  Future<void> cancelAddressSearch() async {
+    _addressCancelled = true;
+    await platform.cancelAddressPopup();
   }
 
   Future<Map<String, dynamic>> notificationStatus({

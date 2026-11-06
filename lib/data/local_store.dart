@@ -204,6 +204,13 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<String?> pickAddress() {
+    if (_api == null) throw StateError('주소 검색은 서버 연결이 필요해요.');
+    return _api!.pickAddress();
+  }
+
+  Future<void> cancelAddressSearch() async => _api?.cancelAddressSearch();
+
   Future<Map<String, dynamic>> notificationStatus({
     bool requestPermission = false,
   }) async => _api == null

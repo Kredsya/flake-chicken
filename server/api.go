@@ -18,6 +18,7 @@ import (
 type serverConfig struct {
 	PublicOrigin   string
 	Development    bool
+	JusoKey        string
 	MapsKey        string
 	MapsDailyLimit int
 	ProjectID      string
@@ -123,9 +124,14 @@ func (b *backend) handler(webDir string) http.Handler {
 	mux.HandleFunc("POST /api/auth/verify", b.authenticate)
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
 		respond(w, 200, map[string]any{
-			"webPushPublicKey": b.vapidPublic, "mapsAvailable": b.cfg.MapsKey != "", "androidPushAvailable": b.cfg.ProjectID != "", "minParticipants": 2,
+			"webPushPublicKey": b.vapidPublic, "mapsAvailable": b.cfg.MapsKey != "", "androidPushAvailable": b.cfg.ProjectID != "", "minParticipants": 2, "addressSearchAvailable": b.cfg.JusoKey != "",
 		})
 	})
+	mux.HandleFunc("POST /api/address-popup", b.authenticated(b.createAddressPopup))
+	mux.HandleFunc("GET /api/address-popup/{id}", b.authenticated(b.addressPopupStatus))
+	mux.HandleFunc("DELETE /api/address-popup/{id}", b.authenticated(b.deleteAddressPopup))
+	mux.HandleFunc("GET /address-popup/{id}/{token}", b.addressPopupPage)
+	mux.HandleFunc("POST /address-popup/{id}/{token}", b.addressPopupPage)
 	mux.HandleFunc("GET /api/appointments", b.authenticated(b.listAppointments))
 	mux.HandleFunc("POST /api/appointments", b.authenticated(b.createAppointment))
 	mux.HandleFunc("GET /api/invitations/{code}", b.authenticated(b.previewInvitation))

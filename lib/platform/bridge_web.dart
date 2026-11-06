@@ -41,6 +41,21 @@ class PlatformBridge {
     await _call('openUrl', url);
   }
 
+  void prepareAddressPopup() {
+    final opened = _platform
+        .callMethod<JSBoolean>('prepareAddressPopup'.toJS)
+        .toDart;
+    if (!opened) throw StateError('브라우저에서 주소 검색 팝업을 허용해주세요.');
+  }
+
+  Future<void> addressPopup(Map<String, dynamic> launch) async {
+    await _call('addressPopup', launch);
+  }
+
+  Future<void> cancelAddressPopup() async {
+    await _call('cancelAddressPopup');
+  }
+
   void startEvents(String origin) {
     _platform.callMethod<JSAny?>('startEvents'.toJS, origin.toJS);
   }

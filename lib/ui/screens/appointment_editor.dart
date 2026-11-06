@@ -6,6 +6,7 @@ import '../../models/appointment.dart';
 import '../theme.dart';
 import '../widgets/chicken_mark.dart';
 import '../widgets/form_widgets.dart';
+import '../widgets/address_search_button.dart';
 import 'settings_screen.dart';
 
 class AppointmentEditor extends StatefulWidget {
@@ -224,10 +225,21 @@ class _AppointmentEditorState extends State<AppointmentEditor> {
                       maxLength: 120,
                       textInputAction: TextInputAction.done,
                       style: const TextStyle(fontSize: 14),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: '장소 또는 주소를 입력해주세요',
                         counterText: '',
-                        prefixIcon: Icon(Icons.location_on_outlined, size: 20),
+                        prefixIcon: const Icon(
+                          Icons.location_on_outlined,
+                          size: 20,
+                        ),
+                        suffixIcon: AddressSearchButton(
+                          key: const ValueKey('search-appointment-address'),
+                          store: widget.store,
+                          onSelected: (address) => _destination.text = address,
+                          onError: (message) {
+                            if (mounted) setState(() => _error = message);
+                          },
+                        ),
                       ),
                       validator: (value) =>
                           value == null || value.trim().isEmpty

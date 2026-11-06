@@ -6,6 +6,7 @@ import '../../data/local_store.dart';
 import '../../models/appointment.dart';
 import '../theme.dart';
 import '../widgets/form_widgets.dart';
+import '../widgets/address_search_button.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.store});
@@ -232,7 +233,20 @@ class _SettingsScreenState extends State<SettingsScreen>
                             ? TextInputAction.done
                             : TextInputAction.next,
                         style: const TextStyle(fontSize: 12),
-                        decoration: _decoration(hint: '주소 입력', compact: true),
+                        decoration: _decoration(hint: '주소 입력', compact: true)
+                            .copyWith(
+                              suffixIcon: AddressSearchButton(
+                                key: ValueKey('search-profile-address-$i'),
+                                store: widget.store,
+                                onSelected: (address) {
+                                  _addresses[i].text = address;
+                                  _changed(address);
+                                },
+                                onError: (message) {
+                                  if (mounted) setState(() => _error = message);
+                                },
+                              ),
+                            ),
                       ),
                     ),
                   ],

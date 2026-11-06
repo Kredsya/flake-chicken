@@ -2,6 +2,7 @@
 (() => {
   'use strict';
   let identityPromise, listener = () => {}, source;
+  let addressWindow, finishAddress;
   const bytes = value => new Uint8Array(value);
   const b64 = value => btoa(String.fromCharCode(...bytes(value)));
   const unb64 = value => bytes(Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
@@ -76,7 +77,40 @@
       source.addEventListener('changed', changed);
       // The API client renews the cookie on its next foreground poll if the session expired.
     },
+    prepareAddressPopup() {
+      finishAddress?.();
+      addressWindow?.close();
+      addressWindow = window.open('about:blank', 'flake-address-' + crypto.randomUUID(), 'width=600,height=650,scrollbars=yes,resizable=yes');
+      if (!addressWindow) return false;
+      addressWindow.document.title = '주소 검색';
+      addressWindow.document.body.textContent = '주소 검색창을 불러오는 중이에요.';
+      return true;
+    },
+    async addressPopup({id, url}) {
+      if (!addressWindow || addressWindow.closed) throw new Error('팝업을 열지 못했어요.');
+      const popup = addressWindow;
+      return new Promise(resolve => {
+        let timer;
+        const done = () => {
+          clearInterval(timer); window.removeEventListener('message', message);
+          if (finishAddress === done) finishAddress = null;
+          resolve(null);
+        };
+        const message = event => {
+          if (event.origin === location.origin && event.source === popup && event.data?.type === 'flake-address-ready' && event.data.id === id) done();
+        };
+        finishAddress = done;
+        window.addEventListener('message', message);
+        timer = setInterval(() => { if (popup.closed && document.visibilityState === 'visible') done(); }, 500);
+        popup.location.replace(url);
+      });
+    },
+    async cancelAddressPopup() {
+      finishAddress?.();
+      try { addressWindow?.close(); } catch (_) { /* A mobile browser may have detached its window. */ }
+      addressWindow = null;
+    },
     async openUrl(url) { window.open(url, '_blank', 'noopener,noreferrer'); },
-    dispose() { source?.close(); navigator.serviceWorker?.removeEventListener('message', changed); listener = () => {}; }
+    dispose() { finishAddress?.(); addressWindow?.close(); source?.close(); navigator.serviceWorker?.removeEventListener('message', changed); listener = () => {}; }
   };
 })();

@@ -296,6 +296,7 @@ func (b *backend) runPushWorker(ctx context.Context) {
 		if err := b.deliverDue(ctx, b.sendPush); err != nil && ctx.Err() == nil {
 			log.Printf("push worker: %v", err)
 		}
+		_, _ = b.db.Exec(`DELETE FROM address_popups WHERE expires_at<=?`, b.now().Unix())
 		_, _ = b.db.Exec(`DELETE FROM challenges WHERE expires_at<?`, b.now().Unix())
 		_, _ = b.db.Exec(`DELETE FROM sessions WHERE expires_at<?`, b.now().Unix())
 		select {

@@ -51,7 +51,7 @@ func main() {
 	}
 	limit, _ := strconv.Atoi(os.Getenv("MAPS_DAILY_LIMIT"))
 	api, err := newBackend(path, serverConfig{PublicOrigin: origin, Development: development,
-		MapsKey: os.Getenv("GOOGLE_MAPS_API_KEY"), MapsDailyLimit: limit, ProjectID: os.Getenv("GOOGLE_CLOUD_PROJECT")})
+		JusoKey: os.Getenv("JUSO_API_KEY"), MapsKey: os.Getenv("GOOGLE_MAPS_API_KEY"), MapsDailyLimit: limit, ProjectID: os.Getenv("GOOGLE_CLOUD_PROJECT")})
 	if err != nil {
 		log.Fatal(err)
 	}

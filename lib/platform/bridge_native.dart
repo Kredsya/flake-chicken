@@ -21,6 +21,13 @@ class PlatformBridge {
       _channel.invokeMethod('disableNotifications');
   Future<void> openUrl(String url) async =>
       _channel.invokeMethod('openUrl', url);
+  void prepareAddressPopup() {}
+  Future<void> addressPopup(Map<String, dynamic> launch) async {
+    await _channel.invokeMethod('addressPopup', launch);
+  }
+
+  Future<void> cancelAddressPopup() async =>
+      _channel.invokeMethod('cancelAddressPopup');
   void startEvents(String origin) {}
   void dispose() {}
 }

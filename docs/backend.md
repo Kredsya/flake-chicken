@@ -31,6 +31,25 @@ Maps Static에 전체 경로와 출발·도착 마커를 전달해 자동으로 
 `MAPS_DAILY_LIMIT`으로 조절합니다. 실패한 공급자 요청도 한도를 소비해 재시도에 따른 비용을 제한합니다.
 Maps 키는 VM 고정 IP와 Routes·Maps Static API로 제한했습니다. 브라우저·APK에는 전달하지 않습니다.
 
+## 행정안전부 도로명주소 모바일 팝업
+
+[공식 API 목록](https://business.juso.go.kr/jst/jstAddressApiList)의 도로명주소 **모바일 팝업 API**를 사용합니다.
+`JUSO_API_KEY`를 서버 환경 파일에 설정하며, 앱 바이너리나 저장소에는 포함하지 않습니다.
+공식 팝업 호출 시 서버가 생성한 폼에 승인키를 넣어 제공사로 POST합니다.
+웹은 클릭 시 바로 새 창을 확보하고 Android는 별도 WebView Activity를 엽니다.
+웹과 Android 모두 `https://business.juso.go.kr/addrlink/addrMobileLinkUrl.do`를 사용합니다.
+공식 모바일 화면에 맞는 모바일 팝업 전용 승인키를 설정합니다.
+
+인증된 `POST /api/address-popup`이 임의 ID와 비밀 토큰을 발급합니다.
+`/address-popup/{id}/{token}`이 공식 팝업을 열고 동일 주소에서 선택 결과 POST를 받습니다.
+공식 서비스 Origin·비밀 토큰·유효시간·주소 길이를 검사하며, 첫 번째 완료 결과만 저장합니다.
+주소 문자열을 HTML·실행 스크립트에 삽입하지 않습니다.
+원래 앱이 본인 세션으로 `GET /api/address-popup/{id}`를 조회해 결과를 받습니다.
+따라서 모바일 브라우저에서 opener 전달이 안 되어도 앱 복귀 후 결과를 받을 수 있습니다.
+선택 후 `DELETE /api/address-popup/{id}`로 삭제하고, 중단된 검색도 최대 10분 뒤 정리합니다.
+주소 검색 창과 임시 결과는 SQLite의 `address_popups` 테이블에서 관리합니다.
+기존 프로필·다른 약속의 주소 사본은 변경하지 않습니다.
+
 ## 시스템 알림
 
 Android는 Firebase Messaging SDK를 사용합니다. 앱이 열려 있어도 Android NotificationManager로만 표시합니다.

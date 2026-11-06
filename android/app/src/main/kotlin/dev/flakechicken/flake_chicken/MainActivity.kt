@@ -22,6 +22,7 @@ object AppEvents {
 }
 
 class MainActivity : FlutterActivity() {
+    private var addressResult: MethodChannel.Result? = null
     private var permissionResult: MethodChannel.Result? = null
     private val executor = Executors.newSingleThreadExecutor()
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -49,6 +50,21 @@ class MainActivity : FlutterActivity() {
                 "disableNotifications" -> {
                     getSharedPreferences("push", MODE_PRIVATE).edit().putBoolean("enabled", false).apply()
                     (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancelAll()
+                    result.success(null)
+                }
+                "addressPopup" -> {
+                    val url = call.argument<String>("url")
+                    val expected = BuildConfig.API_ORIGIN + "/address-popup/"
+                    if (url == null || !url.startsWith(expected)) result.error("address", "주소 검색 경로를 확인해주세요.", null)
+                    else if (addressResult != null) result.error("address", "주소 검색창을 먼저 닫아주세요.", null)
+                    else {
+                        addressResult = result
+                        try { startActivityForResult(Intent(this, AddressSearchActivity::class.java).putExtra("url", url), 702) }
+                        catch (_: Exception) { addressResult = null; result.error("address", "주소 검색창을 열지 못했어요.", null) }
+                    }
+                }
+                "cancelAddressPopup" -> {
+                    if (addressResult != null) finishActivity(702)
                     result.success(null)
                 }
                 "openUrl" -> {
@@ -86,6 +102,10 @@ class MainActivity : FlutterActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 701) { val result = permissionResult; permissionResult = null; if (result != null) notificationStatus(result, true) }
+    }
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 702) { val pending = addressResult; addressResult = null; pending?.success(null) }
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); AppEvents.changed() }
     override fun onDestroy() { AppEvents.sink = null; executor.shutdown(); super.onDestroy() }
