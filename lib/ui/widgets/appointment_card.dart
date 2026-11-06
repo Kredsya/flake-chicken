@@ -13,6 +13,7 @@ class AppointmentCard extends StatelessWidget {
     required this.open,
     required this.onTap,
     required this.onEdit,
+    required this.onDelete,
     required this.onChoiceChanged,
     this.busy = false,
   });
@@ -20,12 +21,15 @@ class AppointmentCard extends StatelessWidget {
   final bool open;
   final VoidCallback onTap;
   final VoidCallback onEdit;
+  final VoidCallback onDelete;
   final ValueChanged<bool> onChoiceChanged;
   final bool busy;
 
   @override
   Widget build(BuildContext context) {
-    final reveal = appointment.isOwner ? 136.0 : 70.0;
+    final reveal = !appointment.isCancelled && appointment.isOwner
+        ? 136.0
+        : 70.0;
     final height = cardHeight(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -33,6 +37,40 @@ class AppointmentCard extends StatelessWidget {
         height: height + 4,
         child: Stack(
           children: [
+            if (open && appointment.isCancelled)
+              Positioned.fill(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _ActionTile(
+                    color: const Color(0xFFF8EAF0),
+                    onTap: busy ? null : onDelete,
+                    child: Semantics(
+                      label: '파토난 약속 삭제',
+                      button: true,
+                      child: Column(
+                        key: ValueKey('delete-${appointment.id}'),
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.delete_outline,
+                            color: AppColors.red,
+                            size: 25,
+                          ),
+                          const SizedBox(height: 7),
+                          const Text(
+                            '삭제',
+                            style: TextStyle(
+                              color: AppColors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (open && !appointment.isCancelled)
               Positioned.fill(
                 child: Align(
@@ -107,25 +145,18 @@ class AppointmentCard extends StatelessWidget {
             AnimatedContainer(
               duration: const Duration(milliseconds: 260),
               curve: Curves.easeOutCubic,
-              transform: Matrix4.translationValues(
-                open && !appointment.isCancelled ? -reveal : 0,
-                0,
-                0,
-              ),
+              transform: Matrix4.translationValues(open ? -reveal : 0, 0, 0),
               child: GestureDetector(
-                onHorizontalDragEnd: appointment.isCancelled
-                    ? null
-                    : (details) {
-                        final velocity = details.primaryVelocity ?? 0;
-                        if ((!open && velocity < -80) ||
-                            (open && velocity > 80)) {
-                          onTap();
-                        }
-                      },
+                onHorizontalDragEnd: (details) {
+                  final velocity = details.primaryVelocity ?? 0;
+                  if ((!open && velocity < -80) || (open && velocity > 80)) {
+                    onTap();
+                  }
+                },
                 child: AppointmentFace(
                   key: ValueKey('appointment-${appointment.id}'),
                   appointment: appointment,
-                  onTap: appointment.isCancelled ? null : onTap,
+                  onTap: onTap,
                 ),
               ),
             ),
@@ -184,6 +215,9 @@ class AppointmentFace extends StatelessWidget {
                   child: RouteMap(
                     variant: appointment.routeVariant,
                     cancelled: appointment.isCancelled,
+                    connected: appointment.connected,
+                    image: appointment.mapImage,
+                    message: appointment.routeMessage,
                   ),
                 ),
                 const SizedBox(width: 12),

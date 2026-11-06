@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -6,9 +7,19 @@ import '../theme.dart';
 
 /// Offline, vector route artwork for the UI preview; not a live Maps response.
 class RouteMap extends StatelessWidget {
-  const RouteMap({super.key, this.variant = 0, this.cancelled = false});
+  const RouteMap({
+    super.key,
+    this.variant = 0,
+    this.cancelled = false,
+    this.connected = false,
+    this.image,
+    this.message,
+  });
   final int variant;
   final bool cancelled;
+  final bool connected;
+  final Uint8List? image;
+  final String? message;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -19,10 +30,30 @@ class RouteMap extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Opacity(
-            opacity: cancelled ? 0.48 : 1,
-            child: CustomPaint(painter: _RoutePainter(variant)),
-          ),
+          if (connected)
+            ColoredBox(
+              color: const Color(0xFFEDF0F2),
+              child: image != null
+                  ? Image.memory(
+                      image!,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                      errorBuilder: (_, _, _) => const Center(
+                        child: Icon(Icons.map_outlined, color: AppColors.muted),
+                      ),
+                    )
+                  : Tooltip(
+                      message: message ?? '경로를 불러오는 중이에요.',
+                      child: const Center(
+                        child: Icon(Icons.map_outlined, color: AppColors.muted),
+                      ),
+                    ),
+            )
+          else
+            Opacity(
+              opacity: cancelled ? .48 : 1,
+              child: CustomPaint(painter: _RoutePainter(variant)),
+            ),
           if (cancelled)
             LayoutBuilder(
               builder: (context, constraints) => Center(

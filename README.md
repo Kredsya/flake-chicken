@@ -1,120 +1,66 @@
 # Flake Chicken
 
-Flutter Android/웹 약속 관리 앱과 작은 GCP 서버.
+Flutter Android·웹 약속 관리 앱과 GCP e2-micro VM 한 대의 Go·SQLite 서버입니다.
 
-요구사항은 [REQUIREMENTS.md](REQUIREMENTS.md)에 작성합니다.
+- 앱: <https://35.212.249.154/>
+- iPhone 설치용 QR: <https://35.212.249.154/install.html>
+- 상태 확인: <https://35.212.249.154/healthz>
+- 요구사항: [REQUIREMENTS.md](REQUIREMENTS.md)
+- 서버·인증·알림 운영: [docs/backend.md](docs/backend.md)
 
-현재는 서버 연결 없이 동작하는 UI 구현 단계입니다. 약속 목록, 생성·수정, 코드 참여,
-프로필과 GMG 모드를 로컬 데이터로 확인할 수 있습니다. 약속과 프로필 변경은 기기에 저장됩니다.
-지도 경로·이동시간·초대 조회는 샘플이며, 실제 약속 동기화와 시스템 알림은 아직 연결하지 않았습니다.
-자세한 확인 방법은 [UI 미리보기 안내](docs/ui-preview.md)를 참고하세요.
+약속 작성자만 수정할 수 있습니다. 참여자가 **2명 이상**이고 전원이 파토를 선택하면 취소가 확정됩니다.
+그 전에는 본인 선택만 볼 수 있으며, 다른 참여자의 선택에 따른 이벤트도 전송하지 않습니다.
+파토난 약속의 삭제는 본인 목록에만 적용됩니다. GMG 모드는 이후 생성·참여하는 약속에만 적용됩니다.
 
-## Android
+표시 이름 3개와 출발 주소 3개는 기기에 자동 저장합니다. 생성·참여 시 선택한 값의 사본만 서버에 전달합니다.
+설치별 공개키와 최초 생성한 랜덤 salt를 SHA-256으로 해시해 식별하며, 개인키 서명으로 인증합니다.
+Android Keystore와 브라우저 WebCrypto의 비공개 키를 사용합니다. 기기·브라우저마다 별개 사용자이며 계정 복구는 없습니다.
+
+Google Routes API에 약속 시간을 도착 시간으로 전달해 대중교통 이동시간을 구합니다.
+Maps Static 이미지에는 경로 전체와 제공자 표시가 포함됩니다. 지도·이동시간은 메모리에만 보관합니다.
+조회 불가 지역·날짜·한도 초과 시 가짜 경로 대신 빈 지도 아이콘이 표시됩니다.
+
+알림은 환경설정에서 켤 수 있으며 시스템 알림만 사용합니다. Android는 FCM, 웹은 Web Push·VAPID를 사용합니다.
+iPhone·iPad는 Safari에서 **공유 → 홈 화면에 추가**한 웹앱에서 알림을 켜야 합니다.
+앱이 열려 있으면 SSE로 변경을 반영하며, 재연결·복귀 시에도 새로 조회합니다.
+
+## 개발과 검증
+
+Flutter 3.47.9, Go 1.26 이상, JDK 21 환경입니다.
 
 ```bash
 flutter pub get
-flutter run -d 192.168.219.68:35429
-```
-
-ADB 주소가 바뀌면 `flutter devices`에 표시되는 기기 ID를 사용합니다.
-
-```bash
 flutter analyze
 flutter test
 flutter build apk --debug --target-platform android-arm64
+flutter build web --release --no-wasm-dry-run
+(cd server && go test ./...)
 ```
 
-APK: `build/app/outputs/flutter-apk/app-debug.apk`
+APK: `build/app/outputs/flutter-apk/app-debug.apk`. ADB 주소는 `adb devices`로 확인합니다.
+Android Firebase 공개 설정은 `android/app/google-services.json`에 있습니다. 서버 Maps 키·개인키는 포함하지 않습니다.
+APK는 현재 개발용 서명입니다.
 
-## 웹 앱 · iPhone 홈 화면 추가
+기본 앱은 실제 서버에 연결합니다. 테스트에서 주입하는 `AppStore.load(MemoryStorage())`만 오프라인 샘플을 사용합니다.
+로컬 서버가 필요하면 `DEVELOPMENT=1 PUBLIC_ORIGIN=http://localhost:8080 DATABASE_PATH=/tmp/flake-dev.db go run .`로 실행합니다.
+웹 기기 인증·푸시는 HTTPS 또는 localhost 보안 컨텍스트가 필요합니다. 미리보기 서버는 확인 후 종료해주세요.
 
-Codemagic이나 Apple 개발자 계정 없이 Flutter 웹 앱을 서버에서 제공합니다.
-iOS 네이티브 프로젝트와 Codemagic 설정은 제거했습니다.
+## 배포
+
+`deploy/server.env.example`을 참고해 비밀값을 **Git에 포함하지 않는** `build/deploy/server.env`에 작성합니다.
+VM과 고정 IP·HTTPS·FCM 발송용 서비스 계정이 준비된 상태에서:
 
 ```bash
-flutter build web --release
-# 로컬 확인 (Chrome 설치 없이 브라우저에서 접속)
-flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8081
+GO_BIN=/path/to/go deploy/gcp.sh
 ```
 
-`build/web`이 배포 산출물입니다. 로컬 Go 서버로 확인하려면 Go 1.22 이상에서:
+기존 `ctf-cloud-508223` 프로젝트의 `flake-chicken-api` (`us-west1-b`, e2-micro, Debian 12, pd-standard 10GB)에 배포합니다.
+서버 DB는 `/var/lib/flake-chicken/app.db`, 서버 환경변수는 `/etc/flake-chicken/server.env`입니다.
+배포 시 DB를 백업하고 웹·서버를 교체합니다. 고정 Standard IPv4는 `35.212.249.154`이며 공개 포트는 80·443입니다.
+FCM 권한만 부여한 VM 서비스 계정으로 발송하며 다운로드한 서비스 계정 키는 사용하지 않습니다.
+IP 인증서는 자동 갱신 타이머가 관리합니다. VM·IPv4·Maps 사용량에는 각 서비스의 과금 정책이 적용됩니다.
 
 ```bash
-cd server
-WEB_DIR="$PWD/../build/web" go run .
-```
-
-GCP 배포는 아래의 `deploy/gcp.sh`가 웹 빌드와 Go 서버를 함께 배포합니다.
-접속 주소는 `http://35.212.249.154:8080/`입니다.
-QR 전용 페이지는 `http://35.212.249.154:8080/install.html`입니다.
-QR 파일은 `web/install-qr.svg`이며 서버 외부 IP가 바뀌면 QR의 주소도 갱신해야 합니다.
-
-1. 이 주소를 담은 QR 코드를 iPhone 카메라로 스캔합니다.
-2. Safari에서 열고 **공유 → 홈 화면에 추가 → 추가**를 선택합니다.
-3. **웹 앱으로 열기** 옵션이 표시되면 켜둡니다.
-4. 홈 화면 아이콘으로 앱을 실행합니다.
-
-매니페스트의 `display: standalone`과 Apple 웹 앱 메타 태그를 설정했습니다.
-HTTP 접속 방식이며 오프라인 캐시와 서비스 워커는 추가하지 않았습니다.
-따라서 실행 시 네트워크 연결이 필요하며, 보안 컨텍스트가 필요한 웹 API는 사용할 수 없습니다.
-약속과 프로필은 브라우저의 로컬 저장소에 보관하며, 다른 기기나 브라우저와 공유되지 않습니다.
-
-참고: [Flutter 웹 배포](https://docs.flutter.dev/deployment/web),
-[Apple 홈 화면 추가 안내](https://support.apple.com/guide/iphone/iphea86e5236/ios).
-
-## 서버
-
-Go 1.22 이상이 필요합니다. 외부 Go 패키지나 별도 DB는 없습니다.
-
-```bash
-cd server
-go run .
-curl http://localhost:8080/healthz
-# {"service":"flake-chicken","status":"ok"}
-```
-
-`LISTEN_ADDR`로 리슨 주소를 변경할 수 있습니다. 기본값은 `:8080`입니다.
-
-## GCP 배포
-
-현재 웹 앱 주소: <http://35.212.249.154:8080/>
-
-현재 상태 확인 주소: <http://35.212.249.154:8080/healthz>
-
-```bash
-PROJECT_ID=ctf-cloud-508223 bash deploy/gcp.sh
-```
-
-Go가 다른 위치에 있으면 `GO_BIN=/path/to/go`를 지정합니다.
-Flutter 경로는 `FLUTTER_BIN=/path/to/flutter`로 지정할 수 있습니다.
-스크립트는 `flake-chicken-api` VM과 해당 태그 전용 TCP 8080 방화벽 규칙을 만들고,
-웹 빌드와 바이너리를 전송해 systemd 서비스로 실행합니다. 재실행하면 같은 VM에 배포합니다.
-SSH 접속이 가능한 VPC가 필요하며, 기본값은 현재 프로젝트의 `default` 네트워크입니다.
-
-- 리전/존: `us-west1-b` (Oregon)
-- 머신: `e2-micro`, 일반 VM 1대
-- 부팅 디스크: `pd-standard` 10GB, Debian 12
-- 네트워크: Standard tier 외부 IPv4
-- VM 서비스 계정 없음, 서비스 메모리 한도 128MB
-- 상태 확인: 배포 후 출력되는 `http://<외부 IP>:8080/healthz`
-- 웹 주소: 배포 후 출력되는 `http://<외부 IP>:8080/`
-- 약속 동기화, 로그인, 실제 경로 조회와 시스템 알림은 아직 연결하지 않았습니다.
-
-[GCP 무료 한도](https://docs.cloud.google.com/free/docs/free-cloud-features#compute) 내에서는
-미국 지정 리전의 e2-micro 월 1대분과 표준 디스크 30GB-month까지 무료입니다.
-한도는 결제 계정 전체에서 공유됩니다.
-[외부 IPv4 요금](https://cloud.google.com/vpc/network-pricing#ipaddress)은 시간당 $0.005로,
-730시간 기준 월 약 $3.65입니다. 트래픽 초과분과 세금은 별도입니다.
-임시 외부 IP라 VM을 중지했다가 켜면 주소가 바뀔 수 있습니다.
-
-```bash
-# 서비스 로그
-gcloud compute ssh flake-chicken-api --project=ctf-cloud-508223 --zone=us-west1-b \
-  --command='sudo journalctl -u flake-chicken.service -n 50 --no-pager'
-
-# 사용을 끝내고 VM 및 부팅 디스크 삭제
-gcloud compute instances delete flake-chicken-api \
-  --project=ctf-cloud-508223 --zone=us-west1-b --delete-disks=boot
-
-gcloud compute firewall-rules delete flake-chicken-api-8080 --project=ctf-cloud-508223
+gcloud compute ssh flake-chicken-api --zone=us-west1-b \
+  --command='sudo journalctl -u flake-chicken -n 40 --no-pager'
 ```

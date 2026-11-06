@@ -7,7 +7,7 @@ import '../widgets/appointment_card.dart';
 import '../widgets/chicken_mark.dart';
 import 'appointment_editor.dart';
 import 'join_screen.dart';
-import 'profile_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.store});
@@ -23,12 +23,28 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _errorId;
   final _busy = <String>{};
 
-  void _openPage(Widget page) {
+  Future<void> _openPage(Widget page) async {
     setState(() {
       _menuOpen = false;
       _openId = null;
     });
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+    if (!widget.store.profilesReady && page is! SettingsScreen) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => SettingsScreen(store: widget.store),
+        ),
+      );
+      if (!mounted || !widget.store.profilesReady) return;
+      // Rebuild the editor after profile setup so its selected indices are valid.
+      if (page is AppointmentEditor) {
+        page = AppointmentEditor(store: widget.store);
+      }
+      if (page is JoinScreen) page = JoinScreen(store: widget.store);
+    }
+    if (mounted) {
+      await Navigator.of(context)
+          .push(MaterialPageRoute<void>(builder: (_) => page));
+    }
   }
 
   Future<void> _setChoice(Appointment appointment, bool value) async {
@@ -38,6 +54,21 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     try {
       await widget.store.setMyChoice(appointment.id, value);
+    } catch (_) {
+      if (mounted) setState(() => _errorId = appointment.id);
+    } finally {
+      if (mounted) setState(() => _busy.remove(appointment.id));
+    }
+  }
+
+  Future<void> _delete(Appointment appointment) async {
+    setState(() {
+      _busy.add(appointment.id);
+      _errorId = null;
+    });
+    try {
+      await widget.store.deleteCancelledAppointment(appointment.id);
+      if (mounted) setState(() => _openId = null);
     } catch (_) {
       if (mounted) setState(() => _errorId = appointment.id);
     } finally {
@@ -62,106 +93,117 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             ListenableBuilder(
               listenable: widget.store,
-              builder: (context, _) => ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
-                children: [
-                  Row(
-                    children: [
-                      const ChickenMark(),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Flake Chicken',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            fontStyle: FontStyle.italic,
-                            letterSpacing: -.6,
-                          ),
-                        ),
-                      ),
-                      DecoratedBox(
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFE9EDF3),
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          key: const ValueKey('open-profile'),
-                          tooltip: '프로필 설정',
-                          icon: const Icon(Icons.person_outline, size: 23),
-                          onPressed: () =>
-                              _openPage(ProfileScreen(store: widget.store)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    '우리의 약속',
-                    style: TextStyle(
-                      fontSize: 29,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    '다가오는 만남을 한곳에서',
-                    style: TextStyle(color: Color(0xFF68768B), fontSize: 14),
-                  ),
-                  const SizedBox(height: 32),
-                  if (widget.store.appointments.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 72),
-                      child: Center(
-                        child: Text(
-                          '아직 약속이 없어요',
-                          style: TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 17,
-                          ),
-                        ),
-                      ),
-                    ),
-                  for (final appointment in widget.store.appointments)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AppointmentCard(
-                            appointment: appointment,
-                            open: _openId == appointment.id,
-                            busy: _busy.contains(appointment.id),
-                            onTap: () => setState(
-                              () => _openId = _openId == appointment.id
-                                  ? null
-                                  : appointment.id,
+              builder: (context, _) => RefreshIndicator(
+                onRefresh: widget.store.refresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+                  children: [
+                    Row(
+                      children: [
+                        const ChickenMark(),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Flake Chicken',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              fontStyle: FontStyle.italic,
+                              letterSpacing: -.6,
                             ),
-                            onEdit: () => _openPage(
-                              AppointmentEditor(
-                                store: widget.store,
-                                appointment: appointment,
+                          ),
+                        ),
+                        DecoratedBox(
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE9EDF3),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            key: const ValueKey('open-settings'),
+                            tooltip: '환경설정',
+                            icon: const Icon(Icons.settings_outlined, size: 23),
+                            onPressed: () =>
+                                _openPage(SettingsScreen(store: widget.store)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      '언제 한 번 밥 먹자',
+                      style: TextStyle(
+                        fontSize: 29,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      '그래그래 연락 한 번 할게',
+                      style: TextStyle(color: Color(0xFF68768B), fontSize: 14),
+                    ),
+                    const SizedBox(height: 32),
+                    if (widget.store.connectionError != null)
+                      TextButton.icon(
+                        onPressed: () => widget.store.refresh(),
+                        icon: const Icon(Icons.refresh),
+                        label: Text(widget.store.connectionError!),
+                      ),
+                    if (widget.store.appointments.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 72),
+                        child: Center(
+                          child: Text(
+                            '아직 약속이 없어요',
+                            style: TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 17,
+                            ),
+                          ),
+                        ),
+                      ),
+                    for (final appointment in widget.store.appointments)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AppointmentCard(
+                              appointment: appointment,
+                              open: _openId == appointment.id,
+                              busy: _busy.contains(appointment.id),
+                              onTap: () => setState(
+                                () => _openId = _openId == appointment.id
+                                    ? null
+                                    : appointment.id,
                               ),
-                            ),
-                            onChoiceChanged: (value) =>
-                                _setChoice(appointment, value),
-                          ),
-                          if (_errorId == appointment.id)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 4),
-                              child: Text(
-                                '저장하지 못했어요. 다시 시도해주세요.',
-                                style: TextStyle(
-                                  color: AppColors.red,
-                                  fontSize: 12,
+                              onEdit: () => _openPage(
+                                AppointmentEditor(
+                                  store: widget.store,
+                                  appointment: appointment,
                                 ),
                               ),
+                              onDelete: () => _delete(appointment),
+                              onChoiceChanged: (value) =>
+                                  _setChoice(appointment, value),
                             ),
-                        ],
+                            if (_errorId == appointment.id)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 4),
+                                child: Text(
+                                  '저장하지 못했어요. 다시 시도해주세요.',
+                                  style: TextStyle(
+                                    color: AppColors.red,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
             if (_menuOpen)

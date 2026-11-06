@@ -3,9 +3,9 @@
   "short_name": "Flake Chicken",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#222222",
-  "description": "Flake Chicken 카운터",
+  "background_color": "#f5f7fb",
+  "theme_color": "#95b7de",
+  "description": "함께 정하는 약속, Flake Chicken",
   "orientation": "portrait-primary",
   "prefer_related_applications": false,
   "icons": [

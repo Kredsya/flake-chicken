@@ -4,7 +4,11 @@ After=network.target
 
 [Service]
 ExecStart=/opt/flake-chicken/server
-Environment=LISTEN_ADDR=:8080
+Environment=LISTEN_ADDR=127.0.0.1:8080
+EnvironmentFile=/etc/flake-chicken/server.env
+Environment=GOMEMLIMIT=96MiB
+StateDirectory=flake-chicken
+StateDirectoryMode=0700
 Environment=WEB_DIR=/opt/flake-chicken/web
 DynamicUser=yes
 Restart=on-failure
@@ -13,7 +17,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-MemoryMax=128M
+MemoryMax=192M
 
 [Install]
 WantedBy=multi-user.target

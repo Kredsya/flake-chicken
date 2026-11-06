@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'data/local_store.dart';
 import 'ui/screens/home_screen.dart';
 import 'ui/theme.dart';
+import 'ui/widgets/keyboard_focus_dismissal.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,8 +30,16 @@ class FlakeChickenApp extends StatefulWidget {
 
 class _FlakeChickenAppState extends State<FlakeChickenApp> {
   late Future<AppStore> _store = widget.store == null
-      ? AppStore.load(PreferencesStorage())
+      ? AppStore.connect(PreferencesStorage(key: 'flake_chicken.connected.v1'))
       : Future.value(widget.store!);
+
+  @override
+  void dispose() {
+    if (widget.store == null) {
+      _store.then((store) => store.dispose(), onError: (_) {});
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -48,7 +57,7 @@ class _FlakeChickenAppState extends State<FlakeChickenApp> {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
-            child: child,
+            child: KeyboardFocusDismissal(child: child!),
           ),
         ),
       ),
@@ -63,11 +72,13 @@ class _FlakeChickenAppState extends State<FlakeChickenApp> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('저장된 정보를 불러오지 못했어요.'),
+                  const Text('서버에 연결하지 못했어요.'),
                   const SizedBox(height: 16),
                   FilledButton(
                     onPressed: () => setState(
-                      () => _store = AppStore.load(PreferencesStorage()),
+                      () => _store = AppStore.connect(
+                        PreferencesStorage(key: 'flake_chicken.connected.v1'),
+                      ),
                     ),
                     child: const Text('다시 시도'),
                   ),

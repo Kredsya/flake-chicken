@@ -113,6 +113,26 @@ void main() {
     },
   );
 
+  test(
+    'only cancelled appointments can be deleted and removal survives restart',
+    () async {
+      final storage = MemoryStorage();
+      final store = await AppStore.load(storage, now: now);
+      final active = store.appointments.firstWhere((a) => !a.isCancelled);
+      final cancelled = store.appointments.firstWhere((a) => a.isCancelled);
+      await expectLater(
+        store.deleteCancelledAppointment(active.id),
+        throwsStateError,
+      );
+      expect(store.appointments, hasLength(3));
+      await store.deleteCancelledAppointment(cancelled.id);
+      expect(store.appointments, hasLength(2));
+      final restored = await AppStore.load(storage, now: now);
+      expect(restored.appointments.any((a) => a.id == cancelled.id), isFalse);
+      expect(restored.appointments.any((a) => a.id == active.id), isTrue);
+    },
+  );
+
   test('concurrent local choices are serialized and persisted without losing either', () async {
     final storage = MemoryStorage();
     final store = await AppStore.load(storage, now: now);

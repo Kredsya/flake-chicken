@@ -111,8 +111,8 @@ class ProfileSelector extends StatelessWidget {
             ? null
             : TextButton.icon(
                 onPressed: onManage,
-                icon: const Icon(Icons.people_outline, size: 16),
-                label: const Text('프로필 관리', style: TextStyle(fontSize: 11)),
+                icon: const Icon(Icons.settings_outlined, size: 16),
+                label: const Text('환경설정', style: TextStyle(fontSize: 11)),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.only(left: 8),
                   minimumSize: const Size(0, 40),

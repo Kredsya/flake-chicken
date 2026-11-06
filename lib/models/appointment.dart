@@ -47,6 +47,10 @@ class Appointment {
     this.isCancelled = false,
     this.routeVariant = 0,
     this.durationMinutes,
+    this.version = 1,
+    this.connected = false,
+    this.mapImage,
+    this.routeMessage,
   });
 
   final String id;
@@ -62,6 +66,10 @@ class Appointment {
   final bool isCancelled;
   final int routeVariant;
   final int? durationMinutes;
+  final int version;
+  final bool connected;
+  final Uint8List? mapImage;
+  final String? routeMessage;
 
   Appointment copyWith({
     String? title,
@@ -74,6 +82,10 @@ class Appointment {
     bool? myChoice,
     bool? isCancelled,
     bool clearDuration = false,
+    int? version,
+    int? durationMinutes,
+    Uint8List? mapImage,
+    String? routeMessage,
   }) => Appointment(
     id: id,
     title: title ?? this.title,
@@ -87,7 +99,13 @@ class Appointment {
     myChoice: myChoice ?? this.myChoice,
     isCancelled: isCancelled ?? this.isCancelled,
     routeVariant: routeVariant,
-    durationMinutes: clearDuration ? null : durationMinutes,
+    durationMinutes: clearDuration
+        ? null
+        : (durationMinutes ?? this.durationMinutes),
+    version: version ?? this.version,
+    connected: connected,
+    mapImage: clearDuration ? null : (mapImage ?? this.mapImage),
+    routeMessage: routeMessage ?? this.routeMessage,
   );
 
   Map<String, dynamic> toJson() => {
@@ -104,12 +122,16 @@ class Appointment {
     'isCancelled': isCancelled,
     'routeVariant': routeVariant,
     'durationMinutes': durationMinutes,
+    'version': version,
   };
 
-  factory Appointment.fromJson(Map<String, dynamic> json) => Appointment(
+  factory Appointment.fromJson(
+    Map<String, dynamic> json, {
+    bool connected = false,
+  }) => Appointment(
     id: json['id'] as String,
     title: json['title'] as String,
-    startsAt: DateTime.parse(json['startsAt'] as String),
+    startsAt: DateTime.parse(json['startsAt'] as String).toLocal(),
     destination: json['destination'] as String,
     invitationCode: json['invitationCode'] as String,
     displayName: json['displayName'] as String,
@@ -120,5 +142,7 @@ class Appointment {
     isCancelled: json['isCancelled'] as bool,
     routeVariant: json['routeVariant'] as int,
     durationMinutes: json['durationMinutes'] as int?,
+    version: json['version'] as int? ?? 1,
+    connected: connected,
   );
 }

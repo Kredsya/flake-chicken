@@ -23,13 +23,14 @@ void main() {
   Future<AppStore> launch(
     WidgetTester tester, {
     Size size = const Size(390, 844),
+    AppStorage? storage,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final store = await AppStore.load(
-      MemoryStorage(),
+      storage ?? MemoryStorage(),
       now: DateTime(2026, 11, 7),
     );
     await tester.pumpWidget(FlakeChickenApp(store: store));
@@ -48,7 +49,10 @@ void main() {
     'map cards, action menu and private choice work without extra UI copy',
     (tester) async {
       final store = await launch(tester);
-      expect(find.text('우리의 약속'), findsOneWidget);
+      expect(find.text('언제 한 번 밥 먹자'), findsOneWidget);
+      expect(find.text('그래그래 연락 한 번 할게'), findsOneWidget);
+      expect(find.text('우리의 약속'), findsNothing);
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
       expect(find.text('성수에서 저녁'), findsOneWidget);
       expect(find.text('파 토'), findsOneWidget);
       expect(find.text('Google Maps'), findsNothing);
@@ -78,7 +82,7 @@ void main() {
   );
 
   testWidgets(
-    'guest events have no edit action and cancelled events stay locked',
+    'guest events have no edit action and cancelled events expose only delete',
     (tester) async {
       await launch(tester);
       await tester.tap(
@@ -94,6 +98,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('vote-sample-walk')), findsNothing);
       expect(find.text('파 토'), findsOneWidget);
+      expect(find.text('수정'), findsNothing);
+      expect(find.byKey(const ValueKey('delete-sample-walk')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('delete-sample-walk')));
+      await tester.pumpAndSettle();
+      expect(find.text('한강 산책'), findsNothing);
+      expect(find.text('파 토'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -132,7 +142,7 @@ void main() {
       );
       expect(created.displayName, '지민');
       expect(created.origin, '서울 강남구 테헤란로 25');
-      expect(find.text('우리의 약속'), findsOneWidget);
+      expect(find.text('언제 한 번 밥 먹자'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -193,11 +203,11 @@ void main() {
   );
 
   testWidgets(
-    'profile and GMG save without changing existing appointment snapshots',
+    'settings and GMG autosave without changing existing appointment snapshots',
     (tester) async {
       final store = await launch(tester);
       final original = store.appointments.first;
-      await tester.tap(find.byKey(const ValueKey('open-profile')));
+      await tester.tap(find.byKey(const ValueKey('open-settings')));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('profile-name-0')),
@@ -208,7 +218,8 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('gmg-mode-switch')));
       await tester.pumpAndSettle();
       await capture(tester, '06-profile');
-      await tester.tap(find.byKey(const ValueKey('save-profile')));
+      expect(find.text('저장'), findsNothing);
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       expect(store.profiles.gmgMode, isTrue);
       expect(store.profiles.names.first, '새 이름');
@@ -289,6 +300,78 @@ void main() {
     expect(store.appointments.first.displayName, '민수');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('settings flush the last edit when leaving before the debounce', (
+    tester,
+  ) async {
+    final storage = MemoryStorage();
+    await launch(tester, storage: storage);
+    await tester.tap(find.byKey(const ValueKey('open-settings')));
+    await tester.pumpAndSettle();
+    expect(find.text('환경설정'), findsOneWidget);
+    expect(find.text('저장'), findsNothing);
+    await tester.enterText(
+      find.byKey(const ValueKey('profile-name-1')),
+      '바로 저장',
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('언제 한 번 밥 먹자'), findsOneWidget);
+    final restored = await AppStore.load(storage);
+    expect(restored.profiles.names[1], '바로 저장');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'settings autosave text without leaving or pressing a save button',
+    (tester) async {
+      final storage = MemoryStorage();
+      final store = await launch(tester, storage: storage);
+      await tester.tap(find.byKey(const ValueKey('open-settings')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('profile-address-2')),
+        '서울 종로구 세종대로 175',
+      );
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      expect(find.text('환경설정'), findsOneWidget);
+      expect(store.profiles.addresses[2], '서울 종로구 세종대로 175');
+      final restored = await AppStore.load(storage);
+      expect(restored.profiles.addresses[2], '서울 종로구 세종대로 175');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'hiding the keyboard clears focus and tapping outside also dismisses it',
+    (tester) async {
+      await launch(tester);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.tap(find.byKey(const ValueKey('open-settings')));
+      await tester.pumpAndSettle();
+      final field = find.byKey(const ValueKey('profile-name-0'));
+      await tester.showKeyboard(field);
+      await tester.pump();
+      final editable = tester.widget<EditableText>(
+        find.descendant(of: field, matching: find.byType(EditableText)),
+      );
+      expect(editable.focusNode.hasFocus, isTrue);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding();
+      await tester.pumpAndSettle();
+      expect(editable.focusNode.hasFocus, isFalse);
+      expect(tester.testTextInput.isVisible, isFalse);
+      await tester.showKeyboard(field);
+      await tester.pump();
+      expect(editable.focusNode.hasFocus, isTrue);
+      await tester.tap(find.text('표시 이름'));
+      await tester.pumpAndSettle();
+      expect(editable.focusNode.hasFocus, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Future<void> capture(WidgetTester tester, String name) async {

@@ -6,7 +6,7 @@ import '../../models/appointment.dart';
 import '../theme.dart';
 import '../widgets/chicken_mark.dart';
 import '../widgets/form_widgets.dart';
-import 'profile_screen.dart';
+import 'settings_screen.dart';
 
 class AppointmentEditor extends StatefulWidget {
   const AppointmentEditor({super.key, required this.store, this.appointment});
@@ -94,7 +94,7 @@ class _AppointmentEditorState extends State<AppointmentEditor> {
   Future<void> _manageProfiles() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ProfileScreen(store: widget.store),
+        builder: (_) => SettingsScreen(store: widget.store),
       ),
     );
     if (!mounted) return;
@@ -158,6 +158,7 @@ class _AppointmentEditorState extends State<AppointmentEditor> {
         children: [
           Expanded(
             child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
               child: Form(
                 key: _form,
@@ -170,6 +171,8 @@ class _AppointmentEditorState extends State<AppointmentEditor> {
                     TextFormField(
                       key: const ValueKey('appointment-title'),
                       controller: _title,
+                      onTapOutside: (_) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
                       autovalidateMode: AutovalidateMode.onUserInteraction,
                       maxLength: 40,
                       textInputAction: TextInputAction.next,
@@ -215,6 +218,8 @@ class _AppointmentEditorState extends State<AppointmentEditor> {
                     TextFormField(
                       key: const ValueKey('appointment-destination'),
                       controller: _destination,
+                      onTapOutside: (_) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
                       autovalidateMode: AutovalidateMode.onUserInteraction,
                       maxLength: 120,
                       textInputAction: TextInputAction.done,

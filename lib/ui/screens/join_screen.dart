@@ -34,17 +34,23 @@ class _JoinScreenState extends State<JoinScreen> {
     super.dispose();
   }
 
-  void _check() {
+  Future<void> _check() async {
     FocusScope.of(context).unfocus();
     setState(() {
       _error = null;
       _preview = null;
-      try {
-        _preview = widget.store.previewInvitation(_code.text);
-      } on StateError catch (error) {
-        _error = error.message;
-      }
+      _joining = true;
     });
+    try {
+      final preview = await widget.store.previewInvitation(_code.text);
+      if (mounted) setState(() => _preview = preview);
+    } on StateError catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = '초대 코드를 확인하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
   }
 
   Future<void> _join() async {
@@ -85,6 +91,7 @@ class _JoinScreenState extends State<JoinScreen> {
         children: [
           Expanded(
             child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(20, 26, 20, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,6 +117,8 @@ class _JoinScreenState extends State<JoinScreen> {
                         child: TextField(
                           key: const ValueKey('invitation-code'),
                           controller: _code,
+                          onTapOutside: (_) =>
+                              FocusManager.instance.primaryFocus?.unfocus(),
                           textCapitalization: TextCapitalization.characters,
                           autocorrect: false,
                           enableSuggestions: false,
@@ -137,7 +146,7 @@ class _JoinScreenState extends State<JoinScreen> {
                       const SizedBox(width: 10),
                       OutlinedButton(
                         key: const ValueKey('check-invitation'),
-                        onPressed: _check,
+                        onPressed: _joining ? null : _check,
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(88, 56),
                           padding: const EdgeInsets.symmetric(horizontal: 12),

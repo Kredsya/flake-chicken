@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "634633273085",
+    "project_id": "ctf-cloud-508223",
+    "storage_bucket": "ctf-cloud-508223.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:634633273085:android:0bca18d1fca2d12b1a0894",
+        "android_client_info": {
+          "package_name": "dev.flakechicken.flake_chicken"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMTnVyG0jYXez3FpJjUrqYwL0D-7ev7gU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
