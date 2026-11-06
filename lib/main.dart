@@ -6,6 +6,7 @@ import 'data/local_store.dart';
 import 'ui/screens/home_screen.dart';
 import 'ui/theme.dart';
 import 'ui/widgets/keyboard_focus_dismissal.dart';
+import 'ui/widgets/cancellation_confetti.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,7 +58,15 @@ class _FlakeChickenAppState extends State<FlakeChickenApp> {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
-            child: KeyboardFocusDismissal(child: child!),
+            child: FutureBuilder<AppStore>(
+              future: _store,
+              builder: (context, snapshot) => CancellationConfetti(
+                store: snapshot.connectionState == ConnectionState.done
+                    ? snapshot.data
+                    : null,
+                child: KeyboardFocusDismissal(child: child!),
+              ),
+            ),
           ),
         ),
       ),

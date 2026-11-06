@@ -138,6 +138,8 @@ func (b *backend) handler(webDir string) http.Handler {
 	mux.HandleFunc("POST /api/invitations/{code}/join", b.authenticated(b.joinAppointment))
 	mux.HandleFunc("PATCH /api/appointments/{id}", b.authenticated(b.updateAppointment))
 	mux.HandleFunc("PUT /api/appointments/{id}/choice", b.authenticated(b.setChoice))
+	mux.HandleFunc("POST /api/appointments/{id}/hall-of-fame", b.authenticated(b.archiveAppointment))
+	mux.HandleFunc("DELETE /api/appointments/{id}/owned", b.authenticated(b.deleteOwnedAppointment))
 	mux.HandleFunc("DELETE /api/appointments/{id}", b.authenticated(b.hideAppointment))
 	mux.HandleFunc("GET /api/appointments/{id}/route", b.authenticated(b.route))
 	mux.HandleFunc("GET /api/events", b.authenticated(b.stream))
@@ -163,6 +165,7 @@ func (b *backend) handler(webDir string) http.Handler {
 }
 
 type appointmentView struct {
+	IsArchived       bool   `json:"isArchived"`
 	ID               string `json:"id"`
 	Title            string `json:"title"`
 	StartsAt         string `json:"startsAt"`
@@ -183,12 +186,12 @@ type rowScanner interface{ Scan(...any) error }
 type queryer interface{ QueryRow(string, ...any) *sql.Row }
 
 const appointmentSelect = `SELECT a.id,a.title,a.starts_at,a.destination,a.code,m.display_name,m.origin,
- (SELECT COUNT(*) FROM members c WHERE c.appointment_id=a.id),a.owner=?,m.choice,a.cancelled_at IS NOT NULL,a.version
+ (SELECT COUNT(*) FROM members c WHERE c.appointment_id=a.id),a.owner=?,m.choice,a.cancelled_at IS NOT NULL,a.version,EXISTS(SELECT 1 FROM hall_of_fame h WHERE h.appointment_id=a.id AND h.uid=m.uid)
  FROM appointments a JOIN members m ON m.appointment_id=a.id WHERE m.uid=? AND m.hidden=0`
 
 func scanAppointment(row rowScanner) (appointmentView, error) {
 	var a appointmentView
-	err := row.Scan(&a.ID, &a.Title, &a.StartsAt, &a.Destination, &a.InvitationCode, &a.DisplayName, &a.Origin, &a.ParticipantCount, &a.IsOwner, &a.MyChoice, &a.IsCancelled, &a.Version)
+	err := row.Scan(&a.ID, &a.Title, &a.StartsAt, &a.Destination, &a.InvitationCode, &a.DisplayName, &a.Origin, &a.ParticipantCount, &a.IsOwner, &a.MyChoice, &a.IsCancelled, &a.Version, &a.IsArchived)
 	return a, err
 }
 
@@ -343,6 +346,10 @@ func (b *backend) previewInvitation(w http.ResponseWriter, r *http.Request, user
 		b.internal(w, err)
 		return
 	}
+	if appointmentHasPassed(a.StartsAt, b.now()) {
+		fail(w, 410, "appointment_completed", "이미 시간이 지난 약속이에요.")
+		return
+	}
 	if a.IsCancelled {
 		fail(w, 410, "appointment_cancelled", "이미 파토난 약속이에요.")
 		return
@@ -438,7 +445,8 @@ func (b *backend) joinAppointment(w http.ResponseWriter, r *http.Request, user i
 	defer tx.Rollback()
 	var id string
 	var cancelled bool
-	err = tx.QueryRow(`SELECT id,cancelled_at IS NOT NULL FROM appointments WHERE code=?`, strings.ToUpper(r.PathValue("code"))).Scan(&id, &cancelled)
+	var startsAt string
+	err = tx.QueryRow(`SELECT id,cancelled_at IS NOT NULL,starts_at FROM appointments WHERE code=?`, strings.ToUpper(r.PathValue("code"))).Scan(&id, &cancelled, &startsAt)
 	if err == sql.ErrNoRows {
 		fail(w, 404, "invitation_not_found", "초대 코드를 확인해주세요.")
 		return
@@ -452,6 +460,10 @@ func (b *backend) joinAppointment(w http.ResponseWriter, r *http.Request, user i
 		return
 	} else if err != sql.ErrNoRows {
 		b.internal(w, err)
+		return
+	}
+	if appointmentHasPassed(startsAt, b.now()) {
+		fail(w, 410, "appointment_completed", "이미 시간이 지난 약속이에요.")
 		return
 	}
 	if cancelled {
@@ -533,6 +545,10 @@ func (b *backend) setChoice(w http.ResponseWriter, r *http.Request, user identit
 		}
 		return
 	}
+	if appointmentHasPassed(a.StartsAt, b.now()) {
+		fail(w, 409, "appointment_completed", "시간이 지난 약속은 변경할 수 없어요.")
+		return
+	}
 	_, err = tx.Exec(`UPDATE members SET choice=? WHERE appointment_id=? AND uid=?`, *input.Choice, id, user.UID)
 	if err != nil {
 		b.internal(w, err)
@@ -603,6 +619,10 @@ func (b *backend) updateAppointment(w http.ResponseWriter, r *http.Request, user
 		fail(w, 409, "appointment_cancelled", "이미 파토난 약속이에요.")
 		return
 	}
+	if appointmentHasPassed(a.StartsAt, b.now()) {
+		fail(w, 409, "appointment_completed", "시간이 지난 약속은 변경할 수 없어요.")
+		return
+	}
 	if a.Version != input.Version {
 		fail(w, 409, "version_conflict", "다른 변경사항이 있어요. 약속을 다시 확인해주세요.")
 		return
@@ -632,16 +652,101 @@ func (b *backend) updateAppointment(w http.ResponseWriter, r *http.Request, user
 
 func (b *backend) hideAppointment(w http.ResponseWriter, r *http.Request, user identity) {
 	result, err := b.db.Exec(`UPDATE members SET hidden=1 WHERE appointment_id=? AND uid=? AND
-	 EXISTS(SELECT 1 FROM appointments WHERE id=members.appointment_id AND cancelled_at IS NOT NULL)`, r.PathValue("id"), user.UID)
+	 EXISTS(SELECT 1 FROM appointments WHERE id=members.appointment_id AND (cancelled_at IS NOT NULL OR EXISTS(SELECT 1 FROM hall_of_fame h WHERE h.appointment_id=members.appointment_id AND h.uid=members.uid)))`, r.PathValue("id"), user.UID)
 	if err != nil {
 		b.internal(w, err)
 		return
 	}
 	changed, _ := result.RowsAffected()
 	if changed == 0 {
-		fail(w, 409, "cannot_delete", "파토난 약속만 삭제할 수 있어요.")
+		fail(w, 409, "cannot_delete", "파토난 약속이나 명예의 전당에 있는 약속만 삭제할 수 있어요.")
 		return
 	}
 	b.events.publish([]string{user.UID})
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func appointmentHasPassed(at string, now time.Time) bool {
+	parsed, err := time.Parse(time.RFC3339Nano, at)
+	return err == nil && !parsed.After(now)
+}
+func (b *backend) archiveAppointment(w http.ResponseWriter, r *http.Request, user identity) {
+	tx, err := b.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		b.internal(w, err)
+		return
+	}
+	defer tx.Rollback()
+	a, err := ownAppointment(tx, r.PathValue("id"), user.UID)
+	if err == sql.ErrNoRows {
+		fail(w, 404, "not_found", "약속을 찾을 수 없어요.")
+		return
+	}
+	if err != nil {
+		b.internal(w, err)
+		return
+	}
+	if a.IsCancelled || !appointmentHasPassed(a.StartsAt, b.now()) {
+		fail(w, 409, "not_completed", "파토 없이 시간이 지난 약속만 명예의 전당에 옮길 수 있어요.")
+		return
+	}
+	if _, err = tx.Exec(`INSERT OR IGNORE INTO hall_of_fame(appointment_id,uid) VALUES(?,?)`, a.ID, user.UID); err != nil {
+		b.internal(w, err)
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		b.internal(w, err)
+		return
+	}
+	b.events.publish([]string{user.UID})
+	respond(w, 200, map[string]bool{"archived": true})
+}
+
+func (b *backend) deleteOwnedAppointment(w http.ResponseWriter, r *http.Request, user identity) {
+	tx, err := b.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		b.internal(w, err)
+		return
+	}
+	defer tx.Rollback()
+	a, err := ownAppointment(tx, r.PathValue("id"), user.UID)
+	if err == sql.ErrNoRows {
+		w.WriteHeader(204)
+		return
+	}
+	if err != nil {
+		b.internal(w, err)
+		return
+	}
+	if !a.IsOwner {
+		fail(w, 403, "owner_required", "약속을 만든 사람만 삭제할 수 있어요.")
+		return
+	}
+	if a.IsCancelled || appointmentHasPassed(a.StartsAt, b.now()) {
+		fail(w, 409, "appointment_finished", "종료된 약속은 목록에서 삭제해주세요.")
+		return
+	}
+	users, err := memberUIDs(tx, a.ID)
+	if err != nil {
+		b.internal(w, err)
+		return
+	}
+	for _, query := range []string{
+		`DELETE FROM push_outbox WHERE notification_id IN (SELECT id FROM notifications WHERE appointment_id=?)`,
+		`DELETE FROM notifications WHERE appointment_id=?`,
+		`DELETE FROM hall_of_fame WHERE appointment_id=?`,
+		`DELETE FROM members WHERE appointment_id=?`,
+		`DELETE FROM appointments WHERE id=?`,
+	} {
+		if _, err = tx.Exec(query, a.ID); err != nil {
+			b.internal(w, err)
+			return
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		b.internal(w, err)
+		return
+	}
+	b.events.publish(users)
+	w.WriteHeader(204)
 }

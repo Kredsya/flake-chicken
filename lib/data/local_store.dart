@@ -65,15 +65,62 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
   List<Appointment> _appointments;
   final List<Appointment> _invitations;
   Future<void> _writes = Future.value();
+  Set<String> _celebratedCancellationIds = {};
+
+  bool get hasUnseenCancellation => _appointments.any(
+    (a) => a.isCancelled && !_celebratedCancellationIds.contains(a.id),
+  );
+
+  // Persist before drawing so reconnects and process restarts cannot replay it.
+  Future<bool> claimCancellationCelebration() {
+    if (!hasUnseenCancellation) return Future.value(false);
+    return _commit(() {
+      final unseen = _appointments
+          .where(
+            (a) => a.isCancelled && !_celebratedCancellationIds.contains(a.id),
+          )
+          .map((a) => a.id)
+          .toSet();
+      if (unseen.isEmpty) return false;
+      _celebratedCancellationIds = {..._celebratedCancellationIds, ...unseen};
+      return true;
+    });
+  }
 
   ProfileSettings get profiles => _profiles;
   List<Appointment> get appointments {
-    final sorted = List<Appointment>.of(_appointments);
+    final sorted = _appointments.where((a) => !a.isArchived).toList();
     sorted.sort((a, b) {
       if (a.isCancelled != b.isCancelled) return a.isCancelled ? 1 : -1;
       return a.startsAt.compareTo(b.startsAt);
     });
     return List.unmodifiable(sorted);
+  }
+
+  List<Appointment> get hallOfFame {
+    final items =
+        _appointments.where((a) => a.isArchived && !a.isCancelled).toList()
+          ..sort((a, b) => b.startsAt.compareTo(a.startsAt));
+    return List.unmodifiable(items);
+  }
+
+  Future<void> archiveAppointment(String id) async {
+    if (connected) {
+      await _api!.request(
+        'POST',
+        '/api/appointments/$id/hall-of-fame',
+        body: <String, dynamic>{},
+      );
+      await refresh(force: true);
+      return;
+    }
+    return _commit(() {
+      final a = _appointments.firstWhere((a) => a.id == id);
+      if (!a.isCompleted) throw StateError('시간이 지난 약속만 옮길 수 있어요.');
+      _appointments = _appointments
+          .map((a) => a.id == id ? a.copyWith(isArchived: true) : a)
+          .toList();
+    });
   }
 
   static Future<AppStore> connect(AppStorage storage, {BackendApi? api}) async {
@@ -84,6 +131,11 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
             (jsonDecode(raw) as Map)['profiles'] as Map<String, dynamic>,
           );
     final store = AppStore._(storage, profiles, [], []);
+    if (raw != null) {
+      store._celebratedCancellationIds = Set<String>.from(
+        (jsonDecode(raw) as Map)['celebratedCancellationIds'] as List? ?? [],
+      );
+    }
     store._api = api ?? BackendApi();
     try {
       await store._api!.start();
@@ -154,7 +206,7 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
       // Sequential requests keep the small VM and provider quotas predictable.
       for (final snapshot in List<Appointment>.of(_appointments)) {
         if (_disposed || !_active) break;
-        if (snapshot.mapImage != null) continue;
+        if (snapshot.mapImage != null || snapshot.isArchived) continue;
         final key = _routeKey(snapshot);
         final attempted = _routeAttempts[key];
         if (attempted != null &&
@@ -309,15 +361,23 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
     if (raw != null) {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       return AppStore._(
-        storage,
-        ProfileSettings.fromJson(json['profiles'] as Map<String, dynamic>),
-        (json['appointments'] as List)
-            .map((item) => Appointment.fromJson(item as Map<String, dynamic>))
-            .toList(),
-        invitations,
-      );
+          storage,
+          ProfileSettings.fromJson(json['profiles'] as Map<String, dynamic>),
+          (json['appointments'] as List)
+              .map((item) => Appointment.fromJson(item as Map<String, dynamic>))
+              .toList(),
+          invitations,
+        )
+        .._celebratedCancellationIds = Set<String>.from(
+          json['celebratedCancellationIds'] as List? ?? [],
+        );
     }
-    return AppStore._(storage, profiles, samples, invitations);
+    return AppStore._(storage, profiles, samples, invitations)
+      // Design fixtures are not real cancellation events.
+      .._celebratedCancellationIds = samples
+          .where((a) => a.isCancelled)
+          .map((a) => a.id)
+          .toSet();
   }
 
   Future<T> _commit<T>(T Function() mutate) {
@@ -325,12 +385,26 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
     _writes = _writes.then((_) async {
       final previousProfiles = _profiles;
       final previousAppointments = _appointments;
+      final previousCelebrations = _celebratedCancellationIds;
       try {
+        // Preserve acknowledgements written by another open browser tab.
+        final latest = await _storage.read();
+        if (latest != null) {
+          _celebratedCancellationIds = {
+            ..._celebratedCancellationIds,
+            ...List<String>.from(
+              (jsonDecode(latest) as Map)['celebratedCancellationIds']
+                      as List? ??
+                  [],
+            ),
+          };
+        }
         final value = mutate();
         await _storage.write(
           jsonEncode({
             'version': 1,
             'profiles': _profiles.toJson(),
+            'celebratedCancellationIds': _celebratedCancellationIds.toList(),
             if (!connected)
               'appointments': _appointments
                   .map((item) => item.toJson())
@@ -342,6 +416,7 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
       } catch (error, stack) {
         _profiles = previousProfiles;
         _appointments = previousAppointments;
+        _celebratedCancellationIds = previousCelebrations;
         result.completeError(error, stack);
       }
     });
@@ -357,6 +432,21 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
     _profiles = profiles;
   });
 
+  Future<void> deleteOwnedAppointment(String id) async {
+    if (connected) {
+      await _api!.request('DELETE', '/api/appointments/$id/owned');
+      await refresh(force: true);
+      return;
+    }
+    return _commit(() {
+      final a = _appointments.firstWhere((a) => a.id == id);
+      if (!a.isOwner || a.isCancelled || a.isCompleted) {
+        throw StateError('이 약속은 삭제할 수 없어요.');
+      }
+      _appointments = _appointments.where((a) => a.id != id).toList();
+    });
+  }
+
   Future<void> deleteCancelledAppointment(String id) async {
     if (connected) {
       await _api!.request('DELETE', '/api/appointments/$id');
@@ -365,8 +455,8 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
     }
     return _commit(() {
       final appointment = _appointments.firstWhere((item) => item.id == id);
-      if (!appointment.isCancelled) {
-        throw StateError('파토난 약속만 삭제할 수 있어요.');
+      if (!appointment.isCancelled && !appointment.isArchived) {
+        throw StateError('파토난 약속이나 명예의 전당의 약속만 삭제할 수 있어요.');
       }
       _appointments = _appointments.where((item) => item.id != id).toList();
     });
@@ -465,7 +555,7 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
     return _commit(() {
       _validate(title, destination);
       final current = _appointments.firstWhere((a) => a.id == id);
-      if (!current.isOwner || current.isCancelled) {
+      if (!current.isOwner || current.isCancelled || current.isCompleted) {
         throw StateError('이 약속은 수정할 수 없어요.');
       }
       _appointments = _appointments
@@ -497,7 +587,9 @@ class AppStore extends ChangeNotifier with WidgetsBindingObserver {
     }
     return _commit(() {
       final current = _appointments.firstWhere((a) => a.id == id);
-      if (current.isCancelled) throw StateError('이미 파토난 약속이에요.');
+      if (current.isCancelled || current.isCompleted) {
+        throw StateError('종료된 약속은 변경할 수 없어요.');
+      }
       _appointments = _appointments
           .map((a) => a.id == id ? a.copyWith(myChoice: value) : a)
           .toList();

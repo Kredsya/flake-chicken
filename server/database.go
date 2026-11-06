@@ -50,7 +50,10 @@ func openDatabase(path string) (*sql.DB, error) {
 		 hidden INTEGER NOT NULL DEFAULT 0, joined_at INTEGER NOT NULL,
 		 PRIMARY KEY(appointment_id, uid));
 		CREATE INDEX IF NOT EXISTS members_user ON members(uid, hidden);
-		CREATE TABLE IF NOT EXISTS notifications (
+		CREATE TABLE IF NOT EXISTS hall_of_fame (
+         appointment_id TEXT NOT NULL REFERENCES appointments(id), uid TEXT NOT NULL REFERENCES users(uid),
+         PRIMARY KEY(appointment_id,uid));
+        CREATE TABLE IF NOT EXISTS notifications (
 		 id TEXT PRIMARY KEY, appointment_id TEXT NOT NULL REFERENCES appointments(id),
 		 uid TEXT NOT NULL REFERENCES users(uid), title TEXT NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL,
 		 UNIQUE(appointment_id, uid));

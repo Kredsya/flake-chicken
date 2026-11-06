@@ -1,5 +1,43 @@
 # 서버와 플랫폼 연결
 
+## 개발과 배포
+
+Flutter 3.47.9, Go 1.26 이상, JDK 21 환경입니다.
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --debug --target-platform android-arm64
+flutter build apk --release
+flutter build web --release --no-wasm-dry-run
+(cd server && go test ./...)
+```
+
+개발 APK: `build/app/outputs/flutter-apk/app-debug.apk`, 배포 APK: `build/app/outputs/flutter-apk/app-release.apk`.
+ADB 주소는 `adb devices`로 확인합니다.
+Android Firebase 설정은 Git에서 제외한 `android/app/google-services.json`에 둡니다.
+`android/app/google-services.example.json`을 참고해 발급받은 앱 설정과 제한된 Firebase 키를 로컬에서 준비합니다.
+Firebase 키는 APK에서 추출할 수 있으므로 앱 패키지·서명 인증서와 FCM 필수 API로 사용처를 제한합니다.
+서버 Maps 키와 개인키는 APK에 포함하지 않습니다.
+APK는 현재 개발용 서명입니다.
+
+기본 앱은 실제 서버에 연결합니다. 테스트에서 주입하는 `AppStore.load(MemoryStorage())`만 오프라인 샘플을 사용합니다.
+로컬 서버가 필요하면 `DEVELOPMENT=1 PUBLIC_ORIGIN=http://localhost:8080 DATABASE_PATH=/tmp/flake-dev.db go run .`로 실행합니다.
+웹 기기 인증·푸시는 HTTPS 또는 localhost 보안 컨텍스트가 필요합니다. 미리보기 서버는 확인 후 종료해주세요.
+
+
+`deploy/server.env.example`을 참고해 비밀값을 Git에서 제외한 `build/deploy/server.env`에 작성합니다.
+기존 VM에 웹앱·릴리스 APK·서버를 배포합니다.
+
+```bash
+GO_BIN=/path/to/go deploy/gcp.sh
+```
+
+배포 대상은 `ctf-cloud-508223` 프로젝트의 `flake-chicken-api` (`us-west1-b`, e2-micro)입니다.
+웹앱은 <https://35.212.249.154/>, 설치 QR은 <https://35.212.249.154/install.html>,
+APK는 <https://35.212.249.154/downloads/flake-chicken.apk>에서 제공합니다.
+
 ## 인증과 데이터
 
 설치 식별값은 `hex(SHA256(UTF8("flake-chicken-identity-v1\0") || salt[32] || SPKI_P256_public_key))`입니다.
@@ -17,6 +55,21 @@ SQLite WAL·트랜잭션으로 약속·참여·취소·알림 발송 대기열�
 전원 선택 조건은 `참여자 수 >= 2 && 선택 수 == 참여자 수`입니다. 취소는 한 번만 확정하며 되돌릴 수 없습니다.
 응답에는 본인의 선택·이름·출발지만 포함합니다. 전원 동의 전 선택 이벤트는 본인의 연결에만 전달합니다.
 삭제는 본인의 목록에서 숨기며 다른 참여자와 이미 확정된 결과는 유지합니다.
+
+진행 전 약속의 작성자는 `DELETE /api/appointments/{id}/owned`로 약속과 참여 기록을 삭제할 수 있습니다.
+트랜잭션에서 작성자 권한·완료 여부를 검사하고 전원에게 목록 갱신 이벤트를 보냅니다.
+
+## 완료와 Hall of Fame
+
+파토 없이 시작 시간이 지난 약속은 완료로 취급하며 이후 수정·신규 참여·선택 변경을 거부합니다.
+`POST /api/appointments/{id}/hall-of-fame`은 참여자 본인의 완료 약속만 보관합니다.
+`hall_of_fame`의 약속·사용자 복합 키로 중복 이동을 방지하고 다른 참여자의 목록은 변경하지 않습니다.
+기존 목록 API의 `isArchived`로 메인 목록과 Hall of Fame을 구분합니다.
+보관한 약속은 기존 DELETE API로 본인의 목록에서만 숨깁니다.
+
+파토 파티클은 취소 확정 약속을 처음 확인할 때만 표시합니다.
+약속별 표시 이력을 기기에 먼저 저장하며 재접속·화면 복귀·새로고침으로 반복하지 않습니다.
+여러 미확인 취소는 한 번의 파티클로 묶고, 백그라운드에서는 소비하지 않습니다.
 
 ## 지도
 

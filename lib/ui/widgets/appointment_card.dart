@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/appointment.dart';
 import '../theme.dart';
 import 'route_map.dart';
+import 'gold_glow.dart';
 
 class AppointmentCard extends StatelessWidget {
   const AppointmentCard({
@@ -16,6 +17,7 @@ class AppointmentCard extends StatelessWidget {
     required this.onDelete,
     required this.onChoiceChanged,
     this.busy = false,
+    this.onArchive,
   });
   final Appointment appointment;
   final bool open;
@@ -24,113 +26,50 @@ class AppointmentCard extends StatelessWidget {
   final VoidCallback onDelete;
   final ValueChanged<bool> onChoiceChanged;
   final bool busy;
+  final VoidCallback? onArchive;
 
   @override
   Widget build(BuildContext context) {
-    final reveal = !appointment.isCancelled && appointment.isOwner
+    final reveal = appointment.isArchived || appointment.isCancelled
+        ? 70.0
+        : appointment.isCompleted
+        ? 124.0
+        : appointment.isOwner
         ? 136.0
         : 70.0;
     final height = cardHeight(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        height: height + 4,
-        child: Stack(
-          children: [
-            if (open && appointment.isCancelled)
-              Positioned.fill(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: _ActionTile(
-                    color: const Color(0xFFF8EAF0),
-                    onTap: busy ? null : onDelete,
-                    child: Semantics(
-                      label: '파토난 약속 삭제',
-                      button: true,
-                      child: Column(
-                        key: ValueKey('delete-${appointment.id}'),
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.delete_outline,
-                            color: AppColors.red,
-                            size: 25,
-                          ),
-                          const SizedBox(height: 7),
-                          const Text(
-                            '삭제',
-                            style: TextStyle(
-                              color: AppColors.red,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            if (open && !appointment.isCancelled)
-              Positioned.fill(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (appointment.isOwner)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: _ActionTile(
-                            color: const Color(0xFFEAF0F9),
-                            onTap: onEdit,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.edit_outlined, size: 25),
-                                const SizedBox(height: 7),
-                                const Text(
-                                  '수정',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      _ActionTile(
-                        color: const Color(0xFFF8EAF0),
+    return GoldGlow(
+      enabled: appointment.isCompleted,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          height: height + 4,
+          child: Stack(
+            children: [
+              if (open && (appointment.isCancelled || appointment.isArchived))
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _ActionTile(
+                      color: const Color(0xFFF8EAF0),
+                      onTap: busy ? null : onDelete,
+                      child: Semantics(
+                        label: '약속 삭제',
+                        button: true,
                         child: Column(
+                          key: ValueKey('delete-${appointment.id}'),
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Semantics(
-                              label: '파토',
-                              child: SizedBox(
-                                width: 57,
-                                height: 40,
-                                child: FittedBox(
-                                  child: Switch(
-                                    key: ValueKey('vote-${appointment.id}'),
-                                    value: appointment.myChoice,
-                                    onChanged: busy ? null : onChoiceChanged,
-                                    activeTrackColor: AppColors.pink,
-                                    activeThumbColor: Colors.white,
-                                    inactiveThumbColor: Colors.white,
-                                    inactiveTrackColor: const Color(0xFFCDD5DF),
-                                    trackOutlineColor:
-                                        const WidgetStatePropertyAll(
-                                          Colors.transparent,
-                                        ),
-                                  ),
-                                ),
-                              ),
+                            const Icon(
+                              Icons.delete_outline,
+                              color: AppColors.red,
+                              size: 25,
                             ),
+                            const SizedBox(height: 7),
                             const Text(
-                              '파토',
+                              '삭제',
                               style: TextStyle(
-                                color: AppColors.rose,
+                                color: AppColors.red,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -138,29 +77,146 @@ class AppointmentCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                    ],
+                    ),
+                  ),
+                ),
+              if (open &&
+                  !appointment.isCancelled &&
+                  !appointment.isArchived &&
+                  !appointment.isCompleted)
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (appointment.isOwner)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: _ActionTile(
+                              color: const Color(0xFFEAF0F9),
+                              onTap: onEdit,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.edit_outlined, size: 25),
+                                  const SizedBox(height: 7),
+                                  const Text(
+                                    '수정',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        _ActionTile(
+                          color: const Color(0xFFF8EAF0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Semantics(
+                                label: '파토',
+                                child: SizedBox(
+                                  width: 57,
+                                  height: 40,
+                                  child: FittedBox(
+                                    child: Switch(
+                                      key: ValueKey('vote-${appointment.id}'),
+                                      value: appointment.myChoice,
+                                      onChanged: busy ? null : onChoiceChanged,
+                                      activeTrackColor: AppColors.pink,
+                                      activeThumbColor: Colors.white,
+                                      inactiveThumbColor: Colors.white,
+                                      inactiveTrackColor: const Color(
+                                        0xFFCDD5DF,
+                                      ),
+                                      trackOutlineColor:
+                                          const WidgetStatePropertyAll(
+                                            Colors.transparent,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const Text(
+                                '파토',
+                                style: TextStyle(
+                                  color: AppColors.rose,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (open && appointment.isCompleted && !appointment.isArchived)
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: 118,
+                      height: height,
+                      child: Material(
+                        color: const Color(0xFFF5D576),
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          key: ValueKey('archive-${appointment.id}'),
+                          onTap: busy ? null : onArchive,
+                          borderRadius: BorderRadius.circular(12),
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.emoji_events_outlined,
+                                  color: Color(0xFF8D6415),
+                                ),
+                                SizedBox(height: 10),
+                                Text(
+                                  '명예의 전당으로',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Color(0xFF79550B),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                transform: Matrix4.translationValues(open ? -reveal : 0, 0, 0),
+                child: GestureDetector(
+                  onHorizontalDragEnd: (details) {
+                    final velocity = details.primaryVelocity ?? 0;
+                    if ((!open && velocity < -80) || (open && velocity > 80)) {
+                      onTap();
+                    }
+                  },
+                  child: AppointmentFace(
+                    key: ValueKey('appointment-${appointment.id}'),
+                    appointment: appointment,
+                    onTap: onTap,
                   ),
                 ),
               ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              transform: Matrix4.translationValues(open ? -reveal : 0, 0, 0),
-              child: GestureDetector(
-                onHorizontalDragEnd: (details) {
-                  final velocity = details.primaryVelocity ?? 0;
-                  if ((!open && velocity < -80) || (open && velocity > 80)) {
-                    onTap();
-                  }
-                },
-                child: AppointmentFace(
-                  key: ValueKey('appointment-${appointment.id}'),
-                  appointment: appointment,
-                  onTap: onTap,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -187,9 +243,17 @@ class AppointmentFace extends StatelessWidget {
     height: cardHeight(context),
     margin: const EdgeInsets.only(bottom: 2),
     decoration: BoxDecoration(
-      color: appointment.isCancelled ? const Color(0xFFF7F2F5) : Colors.white,
+      color: appointment.isCancelled
+          ? const Color(0xFFF7F2F5)
+          : appointment.isCompleted
+          ? const Color(0xFFFFF9E8)
+          : Colors.white,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.border),
+      border: Border.all(
+        color: appointment.isCompleted
+            ? const Color(0xFFE4BA50)
+            : AppColors.border,
+      ),
       boxShadow: [
         BoxShadow(
           color: AppColors.ink.withValues(alpha: .045),

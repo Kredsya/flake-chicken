@@ -45,6 +45,7 @@ class Appointment {
     this.isOwner = true,
     this.myChoice = false,
     this.isCancelled = false,
+    this.isArchived = false,
     this.routeVariant = 0,
     this.durationMinutes,
     this.version = 1,
@@ -64,6 +65,8 @@ class Appointment {
   final bool isOwner;
   final bool myChoice;
   final bool isCancelled;
+  final bool isArchived;
+  bool get isCompleted => !isCancelled && !startsAt.isAfter(DateTime.now());
   final int routeVariant;
   final int? durationMinutes;
   final int version;
@@ -81,6 +84,7 @@ class Appointment {
     bool? isOwner,
     bool? myChoice,
     bool? isCancelled,
+    bool? isArchived,
     bool clearDuration = false,
     int? version,
     int? durationMinutes,
@@ -98,6 +102,7 @@ class Appointment {
     isOwner: isOwner ?? this.isOwner,
     myChoice: myChoice ?? this.myChoice,
     isCancelled: isCancelled ?? this.isCancelled,
+    isArchived: isArchived ?? this.isArchived,
     routeVariant: routeVariant,
     durationMinutes: clearDuration
         ? null
@@ -120,6 +125,7 @@ class Appointment {
     'isOwner': isOwner,
     'myChoice': myChoice,
     'isCancelled': isCancelled,
+    'isArchived': isArchived,
     'routeVariant': routeVariant,
     'durationMinutes': durationMinutes,
     'version': version,
@@ -140,6 +146,7 @@ class Appointment {
     isOwner: json['isOwner'] as bool,
     myChoice: json['myChoice'] as bool,
     isCancelled: json['isCancelled'] as bool,
+    isArchived: json['isArchived'] as bool? ?? false,
     routeVariant: json['routeVariant'] as int,
     durationMinutes: json['durationMinutes'] as int?,
     version: json['version'] as int? ?? 1,

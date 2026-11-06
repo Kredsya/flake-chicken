@@ -34,6 +34,7 @@ class _AppointmentEditorState extends State<AppointmentEditor> {
   String? _error;
   bool _saving = false;
   bool _copied = false;
+  bool _confirmDelete = false;
   bool get _editing => widget.appointment != null;
 
   static DateTime _defaultDate() {
@@ -113,6 +114,24 @@ class _AppointmentEditorState extends State<AppointmentEditor> {
     });
   }
 
+  Future<void> _delete() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.store.deleteOwnedAppointment(widget.appointment!.id);
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = '삭제하지 못했어요. 다시 시도해주세요.';
+        });
+      }
+    }
+  }
+
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
     setState(() {
@@ -151,7 +170,22 @@ class _AppointmentEditorState extends State<AppointmentEditor> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(_editing ? '약속 수정' : '새 약속'),
-      actions: const [ChickenMark(size: 32), SizedBox(width: 20)],
+      actions: [
+        if (_editing &&
+            widget.appointment!.isOwner &&
+            !widget.appointment!.isCancelled &&
+            !widget.appointment!.isCompleted)
+          IconButton(
+            key: const ValueKey('delete-appointment'),
+            tooltip: '약속 삭제',
+            onPressed: _saving
+                ? null
+                : () => setState(() => _confirmDelete = true),
+            icon: const Icon(Icons.delete_outline, color: AppColors.red),
+          ),
+        const ChickenMark(size: 32),
+        const SizedBox(width: 20),
+      ],
     ),
     body: SafeArea(
       top: false,
@@ -323,11 +357,45 @@ class _AppointmentEditorState extends State<AppointmentEditor> {
               ),
             ),
           ),
-          BottomAction(
-            label: _editing ? '변경사항 저장' : '약속 만들기',
-            busy: _saving,
-            onPressed: _save,
-          ),
+          if (_confirmDelete)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              child: Column(
+                children: [
+                  const Text(
+                    '모든 참여자의 목록에서 이 약속을 삭제할까요?',
+                    style: TextStyle(color: AppColors.red, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: _saving
+                            ? null
+                            : () => setState(() => _confirmDelete = false),
+                        child: const Text('취소'),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        key: const ValueKey('confirm-delete-appointment'),
+                        onPressed: _saving ? null : _delete,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.red,
+                        ),
+                        child: const Text('약속 삭제'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            )
+          else
+            BottomAction(
+              label: _editing ? '변경사항 저장' : '약속 만들기',
+              busy: _saving,
+              onPressed: _save,
+            ),
         ],
       ),
     ),

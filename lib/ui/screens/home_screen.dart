@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../data/local_store.dart';
@@ -8,6 +10,8 @@ import '../widgets/chicken_mark.dart';
 import 'appointment_editor.dart';
 import 'join_screen.dart';
 import 'settings_screen.dart';
+import 'hall_of_fame_screen.dart';
+import '../widgets/gold_glow.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.store});
@@ -18,6 +22,45 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  Timer? _expiry;
+  @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(_scheduleExpiry);
+    _scheduleExpiry();
+  }
+
+  void _scheduleExpiry() {
+    _expiry?.cancel();
+    final now = DateTime.now();
+    final upcoming =
+        widget.store.appointments
+            .where((a) => !a.isCancelled && a.startsAt.isAfter(now))
+            .map((a) => a.startsAt)
+            .toList()
+          ..sort();
+    if (upcoming.isNotEmpty) {
+      _expiry = Timer(
+        upcoming.first.difference(now) > const Duration(days: 1)
+            ? const Duration(days: 1)
+            : upcoming.first.difference(now) + const Duration(milliseconds: 20),
+        () {
+          if (mounted) {
+            setState(() {});
+            _scheduleExpiry();
+          }
+        },
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _expiry?.cancel();
+    widget.store.removeListener(_scheduleExpiry);
+    super.dispose();
+  }
+
   bool _menuOpen = false;
   String? _openId;
   String? _errorId;
@@ -28,7 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _menuOpen = false;
       _openId = null;
     });
-    if (!widget.store.profilesReady && page is! SettingsScreen) {
+    if (!widget.store.profilesReady &&
+        (page is AppointmentEditor || page is JoinScreen)) {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => SettingsScreen(store: widget.store),
@@ -54,6 +98,21 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     try {
       await widget.store.setMyChoice(appointment.id, value);
+    } catch (_) {
+      if (mounted) setState(() => _errorId = appointment.id);
+    } finally {
+      if (mounted) setState(() => _busy.remove(appointment.id));
+    }
+  }
+
+  Future<void> _archive(Appointment appointment) async {
+    setState(() {
+      _busy.add(appointment.id);
+      _errorId = null;
+    });
+    try {
+      await widget.store.archiveAppointment(appointment.id);
+      if (mounted) setState(() => _openId = null);
     } catch (_) {
       if (mounted) setState(() => _errorId = appointment.id);
     } finally {
@@ -101,7 +160,23 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Row(
                       children: [
-                        const ChickenMark(),
+                        Tooltip(
+                          message: 'Hall of Fame',
+                          child: InkResponse(
+                            key: const ValueKey('open-hall-of-fame'),
+                            onTap: () => _openPage(
+                              HallOfFameScreen(store: widget.store),
+                            ),
+                            child: GoldGlow(
+                              enabled: widget.store.hallOfFame.isNotEmpty,
+                              circle: true,
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: ChickenMark(),
+                              ),
+                            ),
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         const Expanded(
                           child: Text(
@@ -185,6 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                               onDelete: () => _delete(appointment),
+                              onArchive: () => _archive(appointment),
                               onChoiceChanged: (value) =>
                                   _setChoice(appointment, value),
                             ),
