@@ -35,16 +35,36 @@ Flutter 버전은 로컬과 같은 `3.47.9`로 고정했습니다.
 2. **Check for configuration file**을 눌러 설정 파일을 검색합니다.
 3. **Start new build**에서 `ios-build` 워크플로를 실행합니다.
 4. 의존성 설치, 정적 분석, 테스트, 서명 없는 iOS release 빌드를 순서대로 실행합니다.
-5. 성공하면 Artifacts에서 `ios-unsigned.zip`을 다운로드할 수 있습니다.
+5. 성공하면 Artifacts에서 `flake-chicken-unsigned.ipa`를 다운로드합니다.
 
-이 워크플로는 컴파일 확인용입니다. 산출물은 서명되지 않은 `Runner.app`이며,
-iPhone 설치나 TestFlight 업로드용 IPA가 아닙니다.
+산출물은 `Payload/Runner.app` 구조의 서명 없는 IPA입니다.
+파일을 iPhone에서 열기만 해서는 설치되지 않으며, 아래처럼 PC에서 개인 계정으로
+서명한 뒤 설치해야 합니다. Codemagic에는 Apple 계정이나 인증서를 등록하지 않습니다.
 현재 Bundle ID는 `dev.flakechicken.flakeChicken`입니다.
 
-실제 기기 배포나 TestFlight를 사용하려면 Apple Developer Program 가입 후,
-Bundle ID 등록과 서명 인증서·프로비저닝 프로파일을 Codemagic에 설정해야 합니다.
-TestFlight에는 App Store Connect 앱 등록 및 업로드 인증 설정도 필요합니다.
-그 단계에서 서명된 IPA 빌드와 배포 워크플로를 추가합니다.
+### 무료 Apple 계정으로 Windows에서 iPhone에 설치
+
+유료 Apple Developer Program 가입 없이 개인 기기에 테스트 설치하는 경로입니다.
+무료 Apple 계정으로 서명한 앱은 7일 후 만료되므로 다시 서명·설치해야 합니다.
+
+1. Apple 계정이 없다면 [Apple 계정 사이트](https://account.apple.com/)에서 생성합니다.
+2. Windows에 [Sideloadly](https://sideloadly.io/)를 설치합니다.
+   공식 페이지의 요구사항에 따라 Microsoft Store 버전이 아닌 웹 배포용
+   iTunes와 iCloud도 설치합니다. 다운로드 링크는 Sideloadly 공식 페이지에 있습니다.
+3. iPhone을 Windows PC에 USB로 연결하고 잠금을 해제한 뒤 **이 컴퓨터를 신뢰**합니다.
+   Android용 ADB 연결과는 별개이며 WSL에 iPhone을 연결할 필요는 없습니다.
+4. Sideloadly에서 iPhone을 선택하고 다운로드한 IPA를 끌어다 놓습니다.
+5. 무료 Apple 계정을 입력하고 **Start**를 눌러 로그인·2단계 인증을 진행합니다.
+   계정 비밀번호와 인증 코드는 로컬 앱에서만 입력합니다.
+6. iPhone의 **설정 → 일반 → VPN 및 기기 관리**에서 개발자 계정을 신뢰합니다.
+   개발자 모드가 요구되면 **설정 → 개인정보 보호 및 보안 → 개발자 모드**를 켜고,
+   재시동 후 활성화를 승인합니다.
+7. 홈 화면의 앱을 실행합니다. 7일 후에는 같은 계정과 IPA로 다시 설치하거나
+   Sideloadly의 자동 갱신 기능을 구성합니다.
+
+실제 Codemagic 빌드와 iPhone 설치 성공 여부는 빌드 실행 및 기기에서 확인해야 합니다.
+이 방식은 개인 테스트용이며, 불특정 사용자에게 IPA만 보내 설치시키는 배포는 아닙니다.
+TestFlight나 Ad Hoc 배포를 사용하려면 유료 Apple Developer Program과 별도 서명 설정이 필요합니다.
 
 설정 참고: [Codemagic Flutter 가이드](https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/).
 

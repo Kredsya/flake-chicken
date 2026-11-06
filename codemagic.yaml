@@ -1,6 +1,6 @@
 workflows:
   ios-build:
-    name: iOS build check (unsigned)
+    name: iOS IPA for local signing (free Apple account)
     instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
@@ -15,9 +15,14 @@ workflows:
         script: flutter test
       - name: Build iOS without signing
         script: flutter build ios --release --no-codesign
-      - name: Package unsigned app
+      - name: Package unsigned IPA for local signing
         script: |
-          ditto -c -k --sequesterRsrc --keepParent \
-            build/ios/iphoneos/Runner.app build/ios/ios-unsigned.zip
+          set -euo pipefail
+          ipa_path="$PWD/build/ios/flake-chicken-unsigned.ipa"
+          package_dir=$(mktemp -d)
+          trap 'rm -rf "$package_dir"' EXIT
+          mkdir -p "$package_dir/Payload"
+          cp -R build/ios/iphoneos/Runner.app "$package_dir/Payload/Runner.app"
+          (cd "$package_dir" && zip -qry "$ipa_path" Payload)
     artifacts:
-      - build/ios/ios-unsigned.zip
+      - build/ios/flake-chicken-unsigned.ipa
