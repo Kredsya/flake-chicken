@@ -5,12 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flake Chicken QR</title>
   <style>
-    html, body { margin: 0; width: 100%; height: 100%; background: white; }
-    body { display: grid; place-items: center; }
-    img { display: block; width: min(80vmin, 480px); height: auto; }
+    body { margin: 0; min-height: 100svh; display: grid; place-items: center; background: white; font: 18px system-ui, sans-serif; }
+    main { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px; padding: 32px 20px; }
+    a { display: grid; justify-items: center; gap: 12px; color: #222; text-decoration: none; }
+    img { display: block; width: min(70vw, 280px); height: auto; }
   </style>
 </head>
 <body>
-  <img src="install-qr.svg" alt="Flake Chicken 웹 앱 접속 QR 코드">
+  <main>
+    <a href="/">
+      <img src="install-qr.svg" alt="웹앱 접속 QR 코드" width="330" height="330">
+      <span>웹앱</span>
+    </a>
+    <a href="/downloads/flake-chicken.apk" download>
+      <img src="android-apk-qr.svg" alt="Android APK 다운로드 QR 코드" width="410" height="410">
+      <span>Android APK</span>
+    </a>
+  </main>
 </body>
 </html>

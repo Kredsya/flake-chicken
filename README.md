@@ -3,7 +3,8 @@
 Flutter Android·웹 약속 관리 앱과 GCP e2-micro VM 한 대의 Go·SQLite 서버입니다.
 
 - 앱: <https://35.212.249.154/>
-- iPhone 설치용 QR: <https://35.212.249.154/install.html>
+- 웹앱·Android APK QR: <https://35.212.249.154/install.html>
+- Android APK: <https://35.212.249.154/downloads/flake-chicken.apk>
 - 상태 확인: <https://35.212.249.154/healthz>
 - 요구사항: [REQUIREMENTS.md](REQUIREMENTS.md)
 - 서버·인증·알림 운영: [docs/backend.md](docs/backend.md)
@@ -33,11 +34,13 @@ flutter pub get
 flutter analyze
 flutter test
 flutter build apk --debug --target-platform android-arm64
+flutter build apk --release
 flutter build web --release --no-wasm-dry-run
 (cd server && go test ./...)
 ```
 
-APK: `build/app/outputs/flutter-apk/app-debug.apk`. ADB 주소는 `adb devices`로 확인합니다.
+개발 APK: `build/app/outputs/flutter-apk/app-debug.apk`, 배포 APK: `build/app/outputs/flutter-apk/app-release.apk`.
+ADB 주소는 `adb devices`로 확인합니다.
 Android Firebase 공개 설정은 `android/app/google-services.json`에 있습니다. 서버 Maps 키·개인키는 포함하지 않습니다.
 APK는 현재 개발용 서명입니다.
 
@@ -54,9 +57,11 @@ VM과 고정 IP·HTTPS·FCM 발송용 서비스 계정이 준비된 상태에서
 GO_BIN=/path/to/go deploy/gcp.sh
 ```
 
-기존 `ctf-cloud-508223` 프로젝트의 `flake-chicken-api` (`us-west1-b`, e2-micro, Debian 12, pd-standard 10GB)에 배포합니다.
+웹앱·릴리스 APK·서버를 빌드하고 기존 `ctf-cloud-508223` 프로젝트의 `flake-chicken-api` (`us-west1-b`, e2-micro, Debian 12, pd-standard 10GB)에 배포합니다.
 서버 DB는 `/var/lib/flake-chicken/app.db`, 서버 환경변수는 `/etc/flake-chicken/server.env`입니다.
-배포 시 DB를 백업하고 웹·서버를 교체합니다. 고정 Standard IPv4는 `35.212.249.154`이며 공개 포트는 80·443입니다.
+배포 시 DB를 백업하고 웹·APK·서버를 교체합니다. APK는 웹 빌드 외부의 `/opt/flake-chicken/downloads`에 보관하고
+웹 공개 경로에 연결하므로 이후 웹 교체 시에도 다운로드 주소가 유지됩니다.
+고정 Standard IPv4는 `35.212.249.154`이며 공개 포트는 80·443입니다.
 FCM 권한만 부여한 VM 서비스 계정으로 발송하며 다운로드한 서비스 계정 키는 사용하지 않습니다.
 IP 인증서는 자동 갱신 타이머가 관리합니다. VM·IPv4·Maps 사용량에는 각 서비스의 과금 정책이 적용됩니다.
 

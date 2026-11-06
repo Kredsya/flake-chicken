@@ -15,10 +15,12 @@ fi
 gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)'
 mkdir -p "$ROOT_DIR/build/server"
 (cd "$ROOT_DIR" && "$FLUTTER_BIN" build web --release --no-wasm-dry-run)
+(cd "$ROOT_DIR" && "$FLUTTER_BIN" build apk --release)
 tar -czf "$ROOT_DIR/build/server/web.tar.gz" -C "$ROOT_DIR/build/web" .
 (cd "$ROOT_DIR/server" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 "$GO_BIN" build \
   -trimpath -ldflags='-s -w' -o "$ROOT_DIR/build/server/server" .)
 gcloud compute scp "$ROOT_DIR/build/server/server" "$ROOT_DIR/build/server/web.tar.gz" \
+  "$ROOT_DIR/build/app/outputs/flutter-apk/app-release.apk" \
   "$ROOT_DIR/deploy/flake-chicken.service" "$SERVER_ENV_FILE" "$INSTANCE:~/" \
   --project="$PROJECT_ID" --zone="$ZONE" --quiet
 # Copy under a fixed name so custom local environment filenames also work.
@@ -28,6 +30,9 @@ fi
 gcloud compute ssh "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --quiet \
  --ssh-flag='-o ConnectTimeout=10' --command='set -eu
   sudo install -d -m 755 /opt/flake-chicken
+  sudo install -d -m 755 /opt/flake-chicken/downloads
+  sudo install -m 644 "$HOME/app-release.apk" /opt/flake-chicken/downloads/flake-chicken.apk.new
+  sudo mv /opt/flake-chicken/downloads/flake-chicken.apk.new /opt/flake-chicken/downloads/flake-chicken.apk
   sudo install -d -m 700 /etc/flake-chicken /var/backups/flake-chicken
   if [ -f /var/lib/flake-chicken/app.db ]; then
     sudo sqlite3 /var/lib/flake-chicken/app.db ".backup /var/backups/flake-chicken/before-deploy.db"
@@ -39,6 +44,7 @@ gcloud compute ssh "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --quiet \
   sudo install -d -m 755 /opt/flake-chicken/web.new
   sudo tar -xzf "$HOME/web.tar.gz" -C /opt/flake-chicken/web.new
   sudo chmod -R a+rX /opt/flake-chicken/web.new
+  sudo ln -s /opt/flake-chicken/downloads /opt/flake-chicken/web.new/downloads
   sudo rm -rf /opt/flake-chicken/web.previous
   if [ -d /opt/flake-chicken/web ]; then sudo mv /opt/flake-chicken/web /opt/flake-chicken/web.previous; fi
   sudo mv /opt/flake-chicken/web.new /opt/flake-chicken/web
@@ -53,3 +59,5 @@ curl --fail --silent --show-error --retry 5 --retry-connrefused --connect-timeou
  https://35.212.249.154/healthz
 echo
 echo 'Web: https://35.212.249.154/'
+echo 'QR: https://35.212.249.154/install.html'
+echo 'APK: https://35.212.249.154/downloads/flake-chicken.apk'
