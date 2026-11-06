@@ -1,6 +1,6 @@
 # Flake Chicken
 
-Flutter Android 카운터와 작은 GCP 서버.
+Flutter Android/iOS 카운터와 작은 GCP 서버.
 
 요구사항은 [REQUIREMENTS.md](REQUIREMENTS.md)에 작성합니다.
 
@@ -24,6 +24,29 @@ flutter build apk --debug --target-platform android-arm64
 ```
 
 APK: `build/app/outputs/flutter-apk/app-debug.apk`
+
+## iOS (Codemagic)
+
+WSL에서는 iOS를 빌드할 수 없으므로 Codemagic의 macOS 빌드 머신을 사용합니다.
+저장소 루트의 `codemagic.yaml`에 `ios-build` 워크플로가 있습니다.
+Flutter 버전은 로컬과 같은 `3.47.9`로 고정했습니다.
+
+1. Codemagic에 이 저장소를 연결하고 `master` 브랜치를 선택합니다.
+2. **Check for configuration file**을 눌러 설정 파일을 검색합니다.
+3. **Start new build**에서 `ios-build` 워크플로를 실행합니다.
+4. 의존성 설치, 정적 분석, 테스트, 서명 없는 iOS release 빌드를 순서대로 실행합니다.
+5. 성공하면 Artifacts에서 `ios-unsigned.zip`을 다운로드할 수 있습니다.
+
+이 워크플로는 컴파일 확인용입니다. 산출물은 서명되지 않은 `Runner.app`이며,
+iPhone 설치나 TestFlight 업로드용 IPA가 아닙니다.
+현재 Bundle ID는 `dev.flakechicken.flakeChicken`입니다.
+
+실제 기기 배포나 TestFlight를 사용하려면 Apple Developer Program 가입 후,
+Bundle ID 등록과 서명 인증서·프로비저닝 프로파일을 Codemagic에 설정해야 합니다.
+TestFlight에는 App Store Connect 앱 등록 및 업로드 인증 설정도 필요합니다.
+그 단계에서 서명된 IPA 빌드와 배포 워크플로를 추가합니다.
+
+설정 참고: [Codemagic Flutter 가이드](https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/).
 
 ## 서버
 
