@@ -7,6 +7,7 @@ ZONE="${ZONE:-us-west1-b}"
 INSTANCE="${INSTANCE:-flake-chicken-api}"
 NETWORK="${NETWORK:-default}"
 GO_BIN="${GO_BIN:-go}"
+FLUTTER_BIN="${FLUTTER_BIN:-flutter}"
 API_TAG="flake-chicken-api"
 API_RULE="flake-chicken-api-8080"
 
@@ -16,6 +17,11 @@ if [[ -z "$PROJECT_ID" || "$PROJECT_ID" == "(unset)" ]]; then
 fi
 
 mkdir -p "$ROOT_DIR/build/server"
+(
+  cd "$ROOT_DIR"
+  "$FLUTTER_BIN" build web --release
+)
+tar -czf "$ROOT_DIR/build/server/web.tar.gz" -C "$ROOT_DIR/build/web" .
 (
   cd "$ROOT_DIR/server"
   CGO_ENABLED=0 GOOS=linux GOARCH=amd64 "$GO_BIN" build \
@@ -60,12 +66,22 @@ if [[ "$SSH_READY" != true ]]; then
 fi
 
 gcloud compute scp "$ROOT_DIR/build/server/server" \
+  "$ROOT_DIR/build/server/web.tar.gz" \
   "$ROOT_DIR/deploy/flake-chicken.service" "$INSTANCE:~/" \
   --project="$PROJECT_ID" --zone="$ZONE" --quiet
 
 gcloud compute ssh "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" \
   --quiet --command='set -eu
     sudo install -d -m 755 /opt/flake-chicken
+    sudo rm -rf /opt/flake-chicken/web.new
+    sudo install -d -m 755 /opt/flake-chicken/web.new
+    sudo tar -xzf "$HOME/web.tar.gz" -C /opt/flake-chicken/web.new
+    sudo chmod -R a+rX /opt/flake-chicken/web.new
+    sudo rm -rf /opt/flake-chicken/web.previous
+    if [ -d /opt/flake-chicken/web ]; then
+      sudo mv /opt/flake-chicken/web /opt/flake-chicken/web.previous
+    fi
+    sudo mv /opt/flake-chicken/web.new /opt/flake-chicken/web
     sudo install -m 755 "$HOME/server" /opt/flake-chicken/server.new
     sudo mv /opt/flake-chicken/server.new /opt/flake-chicken/server
     sudo install -m 644 "$HOME/flake-chicken.service" /etc/systemd/system/flake-chicken.service
@@ -81,3 +97,5 @@ curl --fail --silent --show-error --retry 5 --retry-connrefused \
   --connect-timeout 10 --max-time 15 "http://$SERVER_IP:8080/healthz"
 echo
 echo "API: http://$SERVER_IP:8080/healthz"
+curl --fail --silent --show-error --output /dev/null "http://$SERVER_IP:8080/"
+echo "Web: http://$SERVER_IP:8080/"

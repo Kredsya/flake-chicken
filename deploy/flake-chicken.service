@@ -5,6 +5,7 @@ After=network.target
 [Service]
 ExecStart=/opt/flake-chicken/server
 Environment=LISTEN_ADDR=:8080
+Environment=WEB_DIR=/opt/flake-chicken/web
 DynamicUser=yes
 Restart=on-failure
 RestartSec=3

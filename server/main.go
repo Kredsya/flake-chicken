@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func main() {
+func newHandler(webDir string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -22,14 +22,24 @@ func main() {
 			log.Printf("health response: %v", err)
 		}
 	})
+	if webDir != "" {
+		files := http.FileServer(http.Dir(webDir))
+		mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-cache")
+			files.ServeHTTP(w, r)
+		}))
+	}
+	return mux
+}
 
+func main() {
 	addr := os.Getenv("LISTEN_ADDR")
 	if addr == "" {
 		addr = ":8080"
 	}
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           newHandler(os.Getenv("WEB_DIR")),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

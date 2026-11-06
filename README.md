@@ -1,12 +1,12 @@
 # Flake Chicken
 
-Flutter Android/iOS 카운터와 작은 GCP 서버.
+Flutter Android/웹 카운터와 작은 GCP 서버.
 
 요구사항은 [REQUIREMENTS.md](REQUIREMENTS.md)에 작성합니다.
 
 화면 중앙의 28dp `+` 버튼을 누르면 바로 아래 숫자가 `0 → 1 → 2…`로 증가합니다.
 터치 영역은 48dp입니다. 숫자는 앱 메모리에만 있고, 앱을 완전히 다시 실행하면 0으로 돌아갑니다.
-현재 카운터는 서버 통신 없이 동작합니다. 서버는 후속 기능을 위한 상태 확인 API만 제공합니다.
+현재 카운터는 서버 통신 없이 동작합니다. 서버는 웹 정적 파일과 후속 기능을 위한 상태 확인 API를 제공합니다.
 
 ## Android
 
@@ -25,48 +25,41 @@ flutter build apk --debug --target-platform android-arm64
 
 APK: `build/app/outputs/flutter-apk/app-debug.apk`
 
-## iOS (Codemagic)
+## 웹 앱 · iPhone 홈 화면 추가
 
-WSL에서는 iOS를 빌드할 수 없으므로 Codemagic의 macOS 빌드 머신을 사용합니다.
-저장소 루트의 `codemagic.yaml`에 `ios-build` 워크플로가 있습니다.
-Flutter 버전은 로컬과 같은 `3.47.9`로 고정했습니다.
+Codemagic이나 Apple 개발자 계정 없이 Flutter 웹 앱을 서버에서 제공합니다.
+iOS 네이티브 프로젝트와 Codemagic 설정은 제거했습니다.
 
-1. Codemagic에 이 저장소를 연결하고 `master` 브랜치를 선택합니다.
-2. **Check for configuration file**을 눌러 설정 파일을 검색합니다.
-3. **Start new build**에서 `ios-build` 워크플로를 실행합니다.
-4. 의존성 설치, 정적 분석, 테스트, 서명 없는 iOS release 빌드를 순서대로 실행합니다.
-5. 성공하면 Artifacts에서 `flake-chicken-unsigned.ipa`를 다운로드합니다.
+```bash
+flutter build web --release
+# 로컬 확인 (Chrome 설치 없이 브라우저에서 접속)
+flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8081
+```
 
-산출물은 `Payload/Runner.app` 구조의 서명 없는 IPA입니다.
-파일을 iPhone에서 열기만 해서는 설치되지 않으며, 아래처럼 PC에서 개인 계정으로
-서명한 뒤 설치해야 합니다. Codemagic에는 Apple 계정이나 인증서를 등록하지 않습니다.
-현재 Bundle ID는 `dev.flakechicken.flakeChicken`입니다.
+`build/web`이 배포 산출물입니다. 로컬 Go 서버로 확인하려면 Go 1.22 이상에서:
 
-### 무료 Apple 계정으로 Windows에서 iPhone에 설치
+```bash
+cd server
+WEB_DIR="$PWD/../build/web" go run .
+```
 
-유료 Apple Developer Program 가입 없이 개인 기기에 테스트 설치하는 경로입니다.
-무료 Apple 계정으로 서명한 앱은 7일 후 만료되므로 다시 서명·설치해야 합니다.
+GCP 배포는 아래의 `deploy/gcp.sh`가 웹 빌드와 Go 서버를 함께 배포합니다.
+접속 주소는 `http://35.212.249.154:8080/`입니다.
+QR 안내 페이지는 `http://35.212.249.154:8080/install.html`입니다.
+QR 파일은 `web/install-qr.svg`이며 서버 외부 IP가 바뀌면 QR과 안내 페이지의 주소도 갱신해야 합니다.
 
-1. Apple 계정이 없다면 [Apple 계정 사이트](https://account.apple.com/)에서 생성합니다.
-2. Windows에 [Sideloadly](https://sideloadly.io/)를 설치합니다.
-   공식 페이지의 요구사항에 따라 Microsoft Store 버전이 아닌 웹 배포용
-   iTunes와 iCloud도 설치합니다. 다운로드 링크는 Sideloadly 공식 페이지에 있습니다.
-3. iPhone을 Windows PC에 USB로 연결하고 잠금을 해제한 뒤 **이 컴퓨터를 신뢰**합니다.
-   Android용 ADB 연결과는 별개이며 WSL에 iPhone을 연결할 필요는 없습니다.
-4. Sideloadly에서 iPhone을 선택하고 다운로드한 IPA를 끌어다 놓습니다.
-5. 무료 Apple 계정을 입력하고 **Start**를 눌러 로그인·2단계 인증을 진행합니다.
-   계정 비밀번호와 인증 코드는 로컬 앱에서만 입력합니다.
-6. iPhone의 **설정 → 일반 → VPN 및 기기 관리**에서 개발자 계정을 신뢰합니다.
-   개발자 모드가 요구되면 **설정 → 개인정보 보호 및 보안 → 개발자 모드**를 켜고,
-   재시동 후 활성화를 승인합니다.
-7. 홈 화면의 앱을 실행합니다. 7일 후에는 같은 계정과 IPA로 다시 설치하거나
-   Sideloadly의 자동 갱신 기능을 구성합니다.
+1. 이 주소를 담은 QR 코드를 iPhone 카메라로 스캔합니다.
+2. Safari에서 열고 **공유 → 홈 화면에 추가 → 추가**를 선택합니다.
+3. **웹 앱으로 열기** 옵션이 표시되면 켜둡니다.
+4. 홈 화면 아이콘으로 앱을 실행합니다.
 
-실제 Codemagic 빌드와 iPhone 설치 성공 여부는 빌드 실행 및 기기에서 확인해야 합니다.
-이 방식은 개인 테스트용이며, 불특정 사용자에게 IPA만 보내 설치시키는 배포는 아닙니다.
-TestFlight나 Ad Hoc 배포를 사용하려면 유료 Apple Developer Program과 별도 서명 설정이 필요합니다.
+매니페스트의 `display: standalone`과 Apple 웹 앱 메타 태그를 설정했습니다.
+HTTP 접속 방식이며 오프라인 캐시와 서비스 워커는 추가하지 않았습니다.
+따라서 실행 시 네트워크 연결이 필요하며, 보안 컨텍스트가 필요한 웹 API는 사용할 수 없습니다.
+앱을 다시 시작하면 카운터가 0으로 돌아가는 기존 동작은 동일합니다.
 
-설정 참고: [Codemagic Flutter 가이드](https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/).
+참고: [Flutter 웹 배포](https://docs.flutter.dev/deployment/web),
+[Apple 홈 화면 추가 안내](https://support.apple.com/guide/iphone/iphea86e5236/ios).
 
 ## 서버
 
@@ -83,6 +76,8 @@ curl http://localhost:8080/healthz
 
 ## GCP 배포
 
+현재 웹 앱 주소: <http://35.212.249.154:8080/>
+
 현재 상태 확인 주소: <http://35.212.249.154:8080/healthz>
 
 ```bash
@@ -90,8 +85,9 @@ PROJECT_ID=ctf-cloud-508223 bash deploy/gcp.sh
 ```
 
 Go가 다른 위치에 있으면 `GO_BIN=/path/to/go`를 지정합니다.
+Flutter 경로는 `FLUTTER_BIN=/path/to/flutter`로 지정할 수 있습니다.
 스크립트는 `flake-chicken-api` VM과 해당 태그 전용 TCP 8080 방화벽 규칙을 만들고,
-바이너리를 전송해 systemd 서비스로 실행합니다. 재실행하면 같은 VM에 배포합니다.
+웹 빌드와 바이너리를 전송해 systemd 서비스로 실행합니다. 재실행하면 같은 VM에 배포합니다.
 SSH 접속이 가능한 VPC가 필요하며, 기본값은 현재 프로젝트의 `default` 네트워크입니다.
 
 - 리전/존: `us-west1-b` (Oregon)
@@ -100,6 +96,7 @@ SSH 접속이 가능한 VPC가 필요하며, 기본값은 현재 프로젝트의
 - 네트워크: Standard tier 외부 IPv4
 - VM 서비스 계정 없음, 서비스 메모리 한도 128MB
 - 상태 확인: 배포 후 출력되는 `http://<외부 IP>:8080/healthz`
+- 웹 주소: 배포 후 출력되는 `http://<외부 IP>:8080/`
 - 숫자 저장, 로그인, TLS는 아직 추가하지 않았습니다.
 
 [GCP 무료 한도](https://docs.cloud.google.com/free/docs/free-cloud-features#compute) 내에서는
