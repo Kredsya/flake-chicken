@@ -11,6 +11,10 @@ if [[ ! -s "$SERVER_ENV_FILE" ]]; then
   echo "Provide SERVER_ENV_FILE with PUBLIC_ORIGIN, DATABASE_PATH, GOOGLE_CLOUD_PROJECT and GOOGLE_MAPS_API_KEY." >&2
   exit 1
 fi
+if [[ ! -s "$ROOT_DIR/android/app/google-services.json" ]]; then
+  echo "Provide the local android/app/google-services.json with the restricted Android Firebase key (see google-services.example.json)." >&2
+  exit 1
+fi
 # The existing VM, reserved IP, TLS and FCM service account are provisioned separately.
 gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)'
 mkdir -p "$ROOT_DIR/build/server"

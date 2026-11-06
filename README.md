@@ -45,7 +45,10 @@ flutter build web --release --no-wasm-dry-run
 
 개발 APK: `build/app/outputs/flutter-apk/app-debug.apk`, 배포 APK: `build/app/outputs/flutter-apk/app-release.apk`.
 ADB 주소는 `adb devices`로 확인합니다.
-Android Firebase 공개 설정은 `android/app/google-services.json`에 있습니다. 서버 Maps 키·개인키는 포함하지 않습니다.
+Android Firebase 설정은 Git에서 제외한 `android/app/google-services.json`에 둡니다.
+`android/app/google-services.example.json`을 참고해 발급받은 앱 설정과 제한된 Firebase 키를 로컬에서 준비합니다.
+Firebase 키는 APK에서 추출할 수 있으므로 앱 패키지·서명 인증서와 FCM 필수 API로 사용처를 제한합니다.
+서버 Maps 키와 개인키는 APK에 포함하지 않습니다.
 APK는 현재 개발용 서명입니다.
 
 기본 앱은 실제 서버에 연결합니다. 테스트에서 주입하는 `AppStore.load(MemoryStorage())`만 오프라인 샘플을 사용합니다.
