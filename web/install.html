@@ -3,28 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flake Chicken 홈 화면에 추가</title>
+  <title>Flake Chicken QR</title>
   <style>
-    body { margin: 0; padding: 32px 20px; background: #f5f7fa; color: #222; font: 17px/1.7 system-ui, sans-serif; }
-    main { max-width: 480px; margin: auto; padding: 28px; border-radius: 24px; background: white; }
-    h1 { font-size: 26px; margin-top: 0; }
-    img { display: block; width: 100%; max-width: 280px; height: auto; margin: 24px auto; }
-    a { color: #23588c; overflow-wrap: anywhere; }
-    .open { display: block; padding: 12px; border-radius: 12px; background: #222; color: white; text-align: center; text-decoration: none; }
+    html, body { margin: 0; width: 100%; height: 100%; background: white; }
+    body { display: grid; place-items: center; }
+    img { display: block; width: min(80vmin, 480px); height: auto; }
   </style>
 </head>
 <body>
-  <main>
-    <h1>Flake Chicken</h1>
-    <p>iPhone 카메라로 QR 코드를 스캔하고 Safari에서 열어주세요.</p>
-    <img src="install-qr.svg" alt="http://35.212.249.154:8080/ 접속 QR 코드">
-    <p><a href="http://35.212.249.154:8080/">http://35.212.249.154:8080/</a></p>
-    <ol>
-      <li>Safari의 공유 버튼을 누릅니다.</li>
-      <li><strong>홈 화면에 추가</strong>를 선택합니다.</li>
-      <li>웹 앱으로 열기 옵션이 표시되면 켜고 <strong>추가</strong>를 누릅니다.</li>
-    </ol>
-    <a class="open" href="/">웹 앱 열기</a>
-  </main>
+  <img src="install-qr.svg" alt="Flake Chicken 웹 앱 접속 QR 코드">
 </body>
 </html>

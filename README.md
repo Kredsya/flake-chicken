@@ -45,8 +45,8 @@ WEB_DIR="$PWD/../build/web" go run .
 
 GCP 배포는 아래의 `deploy/gcp.sh`가 웹 빌드와 Go 서버를 함께 배포합니다.
 접속 주소는 `http://35.212.249.154:8080/`입니다.
-QR 안내 페이지는 `http://35.212.249.154:8080/install.html`입니다.
-QR 파일은 `web/install-qr.svg`이며 서버 외부 IP가 바뀌면 QR과 안내 페이지의 주소도 갱신해야 합니다.
+QR 전용 페이지는 `http://35.212.249.154:8080/install.html`입니다.
+QR 파일은 `web/install-qr.svg`이며 서버 외부 IP가 바뀌면 QR의 주소도 갱신해야 합니다.
 
 1. 이 주소를 담은 QR 코드를 iPhone 카메라로 스캔합니다.
 2. Safari에서 열고 **공유 → 홈 화면에 추가 → 추가**를 선택합니다.
